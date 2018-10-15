@@ -30,5 +30,9 @@ int PathPlanningDemoAlgorithm::readGraphFromFile(char *pathLinks, char *pathNode
 {
   this->planning_->loadLinksFromFile(pathLinks);
 
+  this->planning_->loadNodesFromFile(pathNodes);
+
+  this->planning_->loadGoalsFromFile(pathGoals);
+
   return 0;
 }

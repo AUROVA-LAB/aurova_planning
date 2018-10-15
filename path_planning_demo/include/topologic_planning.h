@@ -10,9 +10,13 @@
 
 #include <fstream>
 
+#define DIRECT_SENSE 1
+#define INVERSE_SENSE -1
+
 struct Goals
 {
   int id_goal;
+  int num_goals;
   int index_link;
   float pose_x;
   float pose_y;
@@ -38,6 +42,7 @@ struct Links
 struct Nodes
 {
   int id_node;
+  int num_nodes;
   int num_neighbors;
   int *id_neighbors;
   int *index_links;
@@ -82,12 +87,34 @@ public:
   ~TopologicPlanning(void);
 
   /**
-   * \brief load file
+   * \brief load links file
    *
-   * This method reads the information of trajectories and goals structured in a topological way,
+   * This method reads the information of links of trajectories structured in a topological way,
    * and it is stored in the class structures.
+   *
+   * @param filePath is the path of file
    */
   int loadLinksFromFile(char *filePath);
+
+  /**
+   * \brief load nodes file
+   *
+   * This method reads the information of nodes of trajectories structured in a topological way,
+   * and it is stored in the class structures.
+   *
+   * @param filePath is the path of file
+   */
+  int loadNodesFromFile(char *filePath);
+
+  /**
+   * \brief load goals file
+   *
+   * This method reads the information of goals of trajectories,
+   * and it is stored in the class structures.
+   *
+   * @param filePath is the path of file
+   */
+  int loadGoalsFromFile(char *filePath);
 };
 
 #endif

@@ -28,6 +28,7 @@
 #include <iri_base_algorithm/iri_base_algorithm.h>
 #include <ros/ros.h>
 #include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
 #include "path_planning_demo_alg.h"
 
 // [publisher subscriber headers]
@@ -49,6 +50,7 @@ private:
   // [publisher attributes]
   ros::Publisher marker_pub_;
   visualization_msgs::Marker marker_;
+  visualization_msgs::MarkerArray marker_array_;
 
   // [subscriber attributes]
 
@@ -126,7 +128,21 @@ protected:
    *
    * @param marker is structure for visualization.
    */
-  int parseLinksToRosMarker(visualization_msgs::Marker& marker, float point_x, float point_y);
+  int parseLinksToRosMarker(visualization_msgs::MarkerArray& marker_array);
+
+  /**
+   * \brief Parse the information in alg structure nodes to visualization marker.
+   *
+   * @param marker is structure for visualization.
+   */
+  int parseNodesToRosMarker(visualization_msgs::MarkerArray& marker_array);
+
+  /**
+   * \brief Parse the information in alg structure goals to visualization marker.
+   *
+   * @param marker is structure for visualization.
+   */
+  int parseGoalsToRosMarker(visualization_msgs::MarkerArray& marker_array);
 
   // [diagnostic functions]
 
