@@ -1,0 +1,9 @@
+<launch>
+
+  <!-- the value parameters for laser transform -->
+  <param name="/frame_id_tf"  value="map" />
+  <param name="/child_id_tf"  value="base_link" />
+
+  <node pkg="get_pose_from_tf" type="get_pose_from_tf" name="get_pose_from_tf" />
+
+</launch>

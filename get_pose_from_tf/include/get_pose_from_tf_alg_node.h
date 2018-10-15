@@ -27,6 +27,9 @@
 
 #include <iri_base_algorithm/iri_base_algorithm.h>
 #include "get_pose_from_tf_alg.h"
+#include <ros/ros.h>
+#include <tf/transform_listener.h>
+#include "nav_msgs/Odometry.h"
 
 // [publisher subscriber headers]
 
@@ -40,83 +43,89 @@
  */
 class GetPoseFromTfAlgNode : public algorithm_base::IriBaseAlgorithm<GetPoseFromTfAlgorithm>
 {
-  private:
-    // [publisher attributes]
+private:
 
-    // [subscriber attributes]
+  tf::StampedTransform transform_;
+  tf::TransformListener listener_;
 
-    // [service attributes]
+  // [publisher attributes]
+  ros::Publisher odometry_publisher_;
+  nav_msgs::Odometry odometry_filtered_;
 
-    // [client attributes]
+  // [subscriber attributes]
 
-    // [action server attributes]
+  // [service attributes]
 
-    // [action client attributes]
+  // [client attributes]
 
-   /**
-    * \brief config variable
-    *
-    * This variable has all the driver parameters defined in the cfg config file.
-    * Is updated everytime function config_update() is called.
-    */
-    Config config_;
-  public:
-   /**
-    * \brief Constructor
-    * 
-    * This constructor initializes specific class attributes and all ROS
-    * communications variables to enable message exchange.
-    */
-    GetPoseFromTfAlgNode(void);
+  // [action server attributes]
 
-   /**
-    * \brief Destructor
-    * 
-    * This destructor frees all necessary dynamic memory allocated within this
-    * this class.
-    */
-    ~GetPoseFromTfAlgNode(void);
+  // [action client attributes]
 
-  protected:
-   /**
-    * \brief main node thread
-    *
-    * This is the main thread node function. Code written here will be executed
-    * in every node loop while the algorithm is on running state. Loop frequency 
-    * can be tuned by modifying loop_rate attribute.
-    *
-    * Here data related to the process loop or to ROS topics (mainly data structs
-    * related to the MSG and SRV files) must be updated. ROS publisher objects 
-    * must publish their data in this process. ROS client servers may also
-    * request data to the corresponding server topics.
-    */
-    void mainNodeThread(void);
+  /**
+   * \brief config variable
+   *
+   * This variable has all the driver parameters defined in the cfg config file.
+   * Is updated everytime function config_update() is called.
+   */
+  Config config_;
+public:
+  /**
+   * \brief Constructor
+   *
+   * This constructor initializes specific class attributes and all ROS
+   * communications variables to enable message exchange.
+   */
+  GetPoseFromTfAlgNode(void);
 
-   /**
-    * \brief dynamic reconfigure server callback
-    * 
-    * This method is called whenever a new configuration is received through
-    * the dynamic reconfigure. The derivated generic algorithm class must 
-    * implement it.
-    *
-    * \param config an object with new configuration from all algorithm 
-    *               parameters defined in the config file.
-    * \param level  integer referring the level in which the configuration
-    *               has been changed.
-    */
-    void node_config_update(Config &config, uint32_t level);
+  /**
+   * \brief Destructor
+   *
+   * This destructor frees all necessary dynamic memory allocated within this
+   * this class.
+   */
+  ~GetPoseFromTfAlgNode(void);
 
-   /**
-    * \brief node add diagnostics
-    *
-    * In this abstract function additional ROS diagnostics applied to the 
-    * specific algorithms may be added.
-    */
-    void addNodeDiagnostics(void);
+protected:
+  /**
+   * \brief main node thread
+   *
+   * This is the main thread node function. Code written here will be executed
+   * in every node loop while the algorithm is on running state. Loop frequency
+   * can be tuned by modifying loop_rate attribute.
+   *
+   * Here data related to the process loop or to ROS topics (mainly data structs
+   * related to the MSG and SRV files) must be updated. ROS publisher objects
+   * must publish their data in this process. ROS client servers may also
+   * request data to the corresponding server topics.
+   */
+  void mainNodeThread(void);
 
-    // [diagnostic functions]
-    
-    // [test functions]
+  /**
+   * \brief dynamic reconfigure server callback
+   *
+   * This method is called whenever a new configuration is received through
+   * the dynamic reconfigure. The derivated generic algorithm class must
+   * implement it.
+   *
+   * \param config an object with new configuration from all algorithm
+   *               parameters defined in the config file.
+   * \param level  integer referring the level in which the configuration
+   *               has been changed.
+   */
+  void node_config_update(Config &config, uint32_t level);
+
+  /**
+   * \brief node add diagnostics
+   *
+   * In this abstract function additional ROS diagnostics applied to the
+   * specific algorithms may be added.
+   */
+  void addNodeDiagnostics(void);
+
+  // [diagnostic functions]
+
+  // [test functions]
 };
 
 #endif
