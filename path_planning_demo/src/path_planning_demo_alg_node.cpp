@@ -4,12 +4,17 @@ PathPlanningDemoAlgNode::PathPlanningDemoAlgNode(void) :
     algorithm_base::IriBaseAlgorithm<PathPlanningDemoAlgorithm>()
 {
   //init class attributes if necessary
-  this->loop_rate_ = 10; //in [Hz]
+  this->loop_rate_ = 25; //in [Hz]
+  this->flag_request_goal_.data = false;
 
   // [init publishers]
   this->marker_pub_ = this->public_node_handle_.advertise < visualization_msgs::MarkerArray > ("/visualization", 1);
+  this->local_goal_pub_ = this->public_node_handle_.advertise < geometry_msgs::PoseStamped
+      > ("/move_base_simple/goal", 1);
 
   // [init subscribers]
+  this->request_goal_sub_ = this->public_node_handle_.subscribe("/request_goal", 1,
+                                                                &PathPlanningDemoAlgNode::cb_getRequestGoalMsg, this);
 
   // [init services]
 
@@ -27,19 +32,30 @@ PathPlanningDemoAlgNode::~PathPlanningDemoAlgNode(void)
 
 void PathPlanningDemoAlgNode::mainNodeThread(void)
 {
-  ////////////////////////////////////////////////////
-  //debug
-  int deb = this->alg_.readGraphFromFile(
-      "/home/mice85/aurova-lab/aurova_ws/src/aurova_planning/path_planning_demo/src/zlinks.graph",
-      "/home/mice85/aurova-lab/aurova_ws/src/aurova_planning/path_planning_demo/src/znodes.graph",
-      "/home/mice85/aurova-lab/aurova_ws/src/aurova_planning/path_planning_demo/src/zgoals.graph");
-  //ROS_INFO("num_links: %d", deb);
-  //////////////////////////////////////////////////////
+  static bool first_exec = true;
+  int status;
 
-  // [fill msg structures]
-  this->parseLinksToRosMarker(this->marker_array_);
-  this->parseNodesToRosMarker(this->marker_array_);
-  this->parseGoalsToRosMarker(this->marker_array_);
+  if (first_exec)
+  {
+    // Load parameters (mode_path, path_files, frame_id_markers)
+    this->public_node_handle_.getParam("/mode_path", this->mode_path_);
+    this->public_node_handle_.getParam("/frame_id_markers", this->alg_.frame_id_markers_);
+    this->public_node_handle_.getParam("/path_file_links", this->path_file_links_);
+    this->public_node_handle_.getParam("/path_file_nodes", this->path_file_nodes_);
+    this->public_node_handle_.getParam("/path_file_goals", this->path_file_goals_);
+
+    // Load topologic-metric map of trajectories.
+    this->alg_.readGraphFromFile(this->path_file_links_, this->path_file_nodes_, this->path_file_goals_);
+    first_exec = false;
+
+    // [fill msg structures]
+    this->parseLinksToRosMarker(this->marker_array_);
+    this->parseNodesToRosMarker(this->marker_array_);
+    this->parseGoalsToRosMarker(this->marker_array_);
+  }
+
+  // Manage the sending of goals
+  status = this->alg_.managePath(this->local_goal_, this->flag_request_goal_.data, this->mode_path_);
 
   // [fill srv structure and make request to the server]
 
@@ -47,10 +63,24 @@ void PathPlanningDemoAlgNode::mainNodeThread(void)
 
   // [publish messages]
   this->marker_pub_.publish(this->marker_array_);
-  this->marker_array_.markers.clear();
+  //this->marker_array_.markers.clear();
+  if (status == NEW_LOCAL_GOAL)
+  {
+    this->local_goal_pub_.publish(this->local_goal_);
+  }
+  else if (status == END_PATH)
+  {
+    ROS_INFO("END_PATH");
+  }
 }
 
 /*  [subscriber callbacks] */
+void PathPlanningDemoAlgNode::cb_getRequestGoalMsg(const std_msgs::Bool::ConstPtr& flag_msg)
+{
+  this->alg_.lock();
+  this->flag_request_goal_.data = flag_msg->data;
+  this->alg_.unlock();
+}
 
 /*  [service callbacks] */
 
@@ -75,14 +105,13 @@ int PathPlanningDemoAlgNode::parseLinksToRosMarker(visualization_msgs::MarkerArr
 
   visualization_msgs::Marker marker;
 
-  marker.header.frame_id = "/map";
+  marker.header.frame_id = this->alg_.frame_id_markers_;
   marker.header.stamp = ros::Time::now();
 
   // Set the namespace and id for this marker.  This serves to create a unique ID
   // Any marker sent with the same namespace and id will overwrite the old one
   marker.ns = "link";
   marker.id = 0;
-
 
   // Set the marker type.  Initially this is CUBE, and cycles between that and SPHERE, ARROW, and CYLINDER
   marker.type = this->shape_ = visualization_msgs::Marker::SPHERE;
@@ -116,7 +145,7 @@ int PathPlanningDemoAlgNode::parseLinksToRosMarker(visualization_msgs::MarkerArr
       marker.pose.orientation.z = 0.0;
       marker.pose.orientation.w = 1.0;
 
-      marker.id = marker.id + 1;
+      marker.id = this->alg_.planning_->st_links_[i].point_id[j];
       marker_array.markers.push_back(marker);
     }
   }
@@ -130,14 +159,13 @@ int PathPlanningDemoAlgNode::parseNodesToRosMarker(visualization_msgs::MarkerArr
 
   visualization_msgs::Marker marker;
 
-  marker.header.frame_id = "/map";
+  marker.header.frame_id = this->alg_.frame_id_markers_;
   marker.header.stamp = ros::Time::now();
 
   // Set the namespace and id for this marker.  This serves to create a unique ID
   // Any marker sent with the same namespace and id will overwrite the old one
   marker.ns = "nodes";
   marker.id = 0;
-
 
   // Set the marker type.  Initially this is CUBE, and cycles between that and SPHERE, ARROW, and CYLINDER
   marker.type = this->shape_ = visualization_msgs::Marker::SPHERE;
@@ -160,17 +188,17 @@ int PathPlanningDemoAlgNode::parseNodesToRosMarker(visualization_msgs::MarkerArr
 
   for (i = 1; i < this->alg_.planning_->st_nodes_[1].num_nodes; i++)
   {
-      // Set the pose of the marker.  This is a full 6DOF pose relative to the frame/time specified in the header
-      marker.pose.position.x = this->alg_.planning_->st_nodes_[i].pose_x;
-      marker.pose.position.y = this->alg_.planning_->st_nodes_[i].pose_y;
-      marker.pose.position.z = 0.0;
-      marker.pose.orientation.x = 0.0;
-      marker.pose.orientation.y = 0.0;
-      marker.pose.orientation.z = 0.0;
-      marker.pose.orientation.w = 1.0;
+    // Set the pose of the marker.  This is a full 6DOF pose relative to the frame/time specified in the header
+    marker.pose.position.x = this->alg_.planning_->st_nodes_[i].pose_x;
+    marker.pose.position.y = this->alg_.planning_->st_nodes_[i].pose_y;
+    marker.pose.position.z = 0.0;
+    marker.pose.orientation.x = 0.0;
+    marker.pose.orientation.y = 0.0;
+    marker.pose.orientation.z = 0.0;
+    marker.pose.orientation.w = 1.0;
 
-      marker.id = marker.id + 1;
-      marker_array.markers.push_back(marker);
+    marker.id = i;
+    marker_array.markers.push_back(marker);
   }
 
   return 0;
@@ -182,14 +210,13 @@ int PathPlanningDemoAlgNode::parseGoalsToRosMarker(visualization_msgs::MarkerArr
 
   visualization_msgs::Marker marker;
 
-  marker.header.frame_id = "/map";
+  marker.header.frame_id = this->alg_.frame_id_markers_;
   marker.header.stamp = ros::Time::now();
 
   // Set the namespace and id for this marker.  This serves to create a unique ID
   // Any marker sent with the same namespace and id will overwrite the old one
   marker.ns = "goals";
   marker.id = 0;
-
 
   // Set the marker type.  Initially this is CUBE, and cycles between that and SPHERE, ARROW, and CYLINDER
   marker.type = this->shape_ = visualization_msgs::Marker::CUBE;
@@ -212,17 +239,17 @@ int PathPlanningDemoAlgNode::parseGoalsToRosMarker(visualization_msgs::MarkerArr
 
   for (i = 1; i < this->alg_.planning_->st_goals_[1].num_goals; i++)
   {
-      // Set the pose of the marker.  This is a full 6DOF pose relative to the frame/time specified in the header
-      marker.pose.position.x = this->alg_.planning_->st_goals_[i].pose_x;
-      marker.pose.position.y = this->alg_.planning_->st_goals_[i].pose_y;
-      marker.pose.position.z = 0.0;
-      marker.pose.orientation.x = 0.0;
-      marker.pose.orientation.y = 0.0;
-      marker.pose.orientation.z = 0.0;
-      marker.pose.orientation.w = 1.0;
+    // Set the pose of the marker.  This is a full 6DOF pose relative to the frame/time specified in the header
+    marker.pose.position.x = this->alg_.planning_->st_goals_[i].pose_x;
+    marker.pose.position.y = this->alg_.planning_->st_goals_[i].pose_y;
+    marker.pose.position.z = 0.0;
+    marker.pose.orientation.x = 0.0;
+    marker.pose.orientation.y = 0.0;
+    marker.pose.orientation.z = 0.0;
+    marker.pose.orientation.w = 1.0;
 
-      marker.id = marker.id + 1;
-      marker_array.markers.push_back(marker);
+    marker.id = i;
+    marker_array.markers.push_back(marker);
   }
 
   return 0;

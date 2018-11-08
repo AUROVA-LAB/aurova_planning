@@ -25,7 +25,21 @@
 #ifndef _path_planning_demo_alg_h_
 #define _path_planning_demo_alg_h_
 
+#define SECUENTIAL_FROM_BOX 1
+#define RANDOM_FROM_BOX 2
+#define GLOBAL_GOAL 3
+#define NO_ACTION 0
+#define NEW_LOCAL_GOAL 1
+#define END_PATH 2
+
 #include <path_planning_demo/PathPlanningDemoConfig.h>
+#include <ros/ros.h>
+#include <tf/tf.h>
+#include <math.h>
+#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
+#include "geometry_msgs/PoseStamped.h"
+#include "std_msgs/Bool.h"
 #include "topologic_planning.h"
 
 //include path_planning_demo_alg main library
@@ -51,6 +65,7 @@ class PathPlanningDemoAlgorithm
   public:
 
     TopologicPlanningPtr planning_;
+    std::string frame_id_markers_;
 
    /**
     * \brief define config type
@@ -138,7 +153,20 @@ class PathPlanningDemoAlgorithm
      * @param pathNodes is the path to nodes files.
      * @param pathGoals is the path to goals files.
      */
-    int readGraphFromFile(char *pathLinks, char *pathNodes, char *pathGoals);
+    int readGraphFromFile(std::string pathLinks, std::string pathNodes, std::string pathGoals);
+
+    /**
+     * \brief Manage the cration of the path, and the sends of local goals.
+     *
+     * In this method the creation of the path is managed depend on the mode. Also, if
+     * we detect up flank in flag_request_goal, the following local goal is sent parsed in local_goal.
+     * This method return integer status: NO_ACTION = 0, NEW_LOCAL_GOAL = 1, or END_PATH = 2.
+     *
+     * @param local_goal (output) is ROS structure for goal representation.
+     * @param flag_request_goal (input) flag for goal request.
+     * @param mode (imput) this is the mode of creating path.
+     */
+    int managePath(geometry_msgs::PoseStamped& local_goal, bool flag_request_goal, int mode);
 };
 
 #endif

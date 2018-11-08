@@ -2,7 +2,7 @@
 
 TopologicPlanning::TopologicPlanning(void)
 {
-
+  this->st_path_.num_points = 0;
 }
 
 TopologicPlanning::~TopologicPlanning(void)
@@ -26,25 +26,74 @@ TopologicPlanning::~TopologicPlanning(void)
   {
     delete[] this->st_links_[i].points_x;
     delete[] this->st_links_[i].points_y;
+    delete[] this->st_links_[i].point_id;
   }
   delete[] this->st_links_;
+
+  //free memory of path
+  if (this->st_path_.num_points > 0)
+  {
+    this->st_path_.num_points = 0;
+    delete[] this->st_path_.points_x;
+    delete[] this->st_path_.points_y;
+    delete[] this->st_path_.point_id;
+  }
 }
 
 ///////////////////////////////////////////////////////////////
 // TopoligicPlanning Public API
 ///////////////////////////////////////////////////////////////
 
-int TopologicPlanning::loadLinksFromFile(char *filePath)
+int TopologicPlanning::generateSecPathFromBox(void)
+{
+  int i, j;
+  int counter = 0;
+
+  //check if path is active
+  if (this->st_path_.num_points > 0)
+  {
+    this->st_path_.num_points = 0;
+    delete[] this->st_path_.points_x;
+    delete[] this->st_path_.points_y;
+    delete[] this->st_path_.point_id;
+  }
+
+  //get number of points, and reserve memory for path
+  for (i = 1; i < this->st_links_[1].num_links; i++)
+  {
+    this->st_path_.num_points = this->st_path_.num_points + this->st_links_[i].num_points;
+  }
+  this->st_path_.points_x = new float[this->st_path_.num_points];
+  this->st_path_.points_y = new float[this->st_path_.num_points];
+  this->st_path_.point_id = new int[this->st_path_.num_points];
+
+  //complete path
+  for (i = 1; i < this->st_links_[1].num_links; i++)
+  {
+    for (j = 0; j < this->st_links_[i].num_points; j++)
+    {
+      this->st_path_.points_x[counter] = this->st_links_[i].points_x[j];
+      this->st_path_.points_y[counter] = this->st_links_[i].points_y[j];
+      this->st_path_.point_id[counter] = this->st_links_[i].point_id[j];
+      counter++;
+    }
+  }
+
+  return 0;
+}
+
+int TopologicPlanning::loadLinksFromFile(std::string filePath)
 {
   std::ifstream file;
   std::string line;
   float point = 0.0;
   int num_of_links = 0;
   int index_link = 0;
+  int index_point_id = 0;
   int i, j;
 
   //openning links file
-  file.open(filePath);
+  file.open(filePath.c_str());
   //assert(file.is_open() && "Error: in file lecture. TopologicPlanning::loadLinksFromFile");
 
   //get number of links
@@ -78,6 +127,7 @@ int TopologicPlanning::loadLinksFromFile(char *filePath)
     //reserve memory of points vector
     this->st_links_[index_link].points_x = new float[this->st_links_[index_link].num_points];
     this->st_links_[index_link].points_y = new float[this->st_links_[index_link].num_points];
+    this->st_links_[index_link].point_id = new int[this->st_links_[index_link].num_points];
 
     //get points of link
     for (j = 0; j < this->st_links_[index_link].num_points; j++)
@@ -95,6 +145,9 @@ int TopologicPlanning::loadLinksFromFile(char *filePath)
         sscanf(line.c_str(), "%f", &point);
         this->st_links_[index_link].points_y[j] = point;
       }
+      //add id to each point.
+      this->st_links_[index_link].point_id[j] = index_point_id;
+      index_point_id++;
     }
   }
 
@@ -103,7 +156,7 @@ int TopologicPlanning::loadLinksFromFile(char *filePath)
   return 0;
 }
 
-int TopologicPlanning::loadNodesFromFile(char *filePath)
+int TopologicPlanning::loadNodesFromFile(std::string filePath)
 {
   std::ifstream file;
   std::string line;
@@ -112,7 +165,7 @@ int TopologicPlanning::loadNodesFromFile(char *filePath)
   int i, j, k;
 
   //openning nodes file
-  file.open(filePath);
+  file.open(filePath.c_str());
 
   //get number of nodes
   if (std::getline(file, line))
@@ -183,7 +236,7 @@ int TopologicPlanning::loadNodesFromFile(char *filePath)
   return 0;
 }
 
-int TopologicPlanning::loadGoalsFromFile(char *filePath)
+int TopologicPlanning::loadGoalsFromFile(std::string filePath)
 {
   std::ifstream file;
   std::string line;
@@ -193,7 +246,7 @@ int TopologicPlanning::loadGoalsFromFile(char *filePath)
   int i, j;
 
   //openning nodes file
-  file.open(filePath);
+  file.open(filePath.c_str());
 
   //get number of goals
   if (std::getline(file, line))

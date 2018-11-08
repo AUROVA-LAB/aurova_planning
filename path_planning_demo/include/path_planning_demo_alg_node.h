@@ -26,9 +26,6 @@
 #define _path_planning_demo_alg_node_h_
 
 #include <iri_base_algorithm/iri_base_algorithm.h>
-#include <ros/ros.h>
-#include <visualization_msgs/Marker.h>
-#include <visualization_msgs/MarkerArray.h>
 #include "path_planning_demo_alg.h"
 
 // [publisher subscriber headers]
@@ -45,14 +42,27 @@ class PathPlanningDemoAlgNode : public algorithm_base::IriBaseAlgorithm<PathPlan
 {
 private:
 
+  int mode_path_;
+  std::string path_file_links_;
+  std::string path_file_nodes_;
+  std::string path_file_goals_;
   uint32_t shape_;
+  visualization_msgs::Marker marker_;
+  visualization_msgs::MarkerArray marker_array_;
+  geometry_msgs::PoseStamped local_goal_;
+  std_msgs::Bool flag_request_goal_;
 
   // [publisher attributes]
   ros::Publisher marker_pub_;
-  visualization_msgs::Marker marker_;
-  visualization_msgs::MarkerArray marker_array_;
+  ros::Publisher local_goal_pub_;
 
   // [subscriber attributes]
+  ros::Subscriber request_goal_sub_;
+
+  /**
+   * \brief callback for read flag for listen request for new goal
+   */
+  void cb_getRequestGoalMsg(const std_msgs::Bool::ConstPtr& flag_msg);
 
   // [service attributes]
 

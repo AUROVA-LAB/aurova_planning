@@ -13,28 +13,12 @@
 #define DIRECT_SENSE 1
 #define INVERSE_SENSE -1
 
-struct Goals
-{
-  int id_goal;
-  int num_goals;
-  int index_link;
-  float pose_x;
-  float pose_y;
-};
-
-struct Pose
-{
-  int index_link;
-  int last_node;
-  float pose_x;
-  float pose_y;
-};
-
 struct Links
 {
   int id_link[2]; // id_link[0]: node ini. id_link[1] node end.
   int num_links;
   int num_points;
+  int *point_id;
   float *points_x;
   float *points_y;
 };
@@ -49,6 +33,33 @@ struct Nodes
   int *sense_links;
   float pose_x;
   float pose_y;
+};
+
+struct Goals
+{
+  int id_goal;
+  int num_goals;
+  int index_link;
+  int point_id;
+  float pose_x;
+  float pose_y;
+};
+
+struct Pose
+{
+  int last_node;
+  int index_link;
+  int point_id;
+  float pose_x;
+  float pose_y;
+};
+
+struct Path
+{
+  int num_points;
+  int *point_id;
+  float *points_x;
+  float *points_y;
 };
 
 /**
@@ -67,10 +78,11 @@ private:
 
 public:
 
-  struct Goals *st_goals_;
-  struct Pose *st_pose_;
   struct Links *st_links_;
   struct Nodes *st_nodes_;
+  struct Goals *st_goals_;
+  struct Pose st_pose_;
+  struct Path st_path_;
 
   /**
    * \brief constructor
@@ -87,6 +99,14 @@ public:
   ~TopologicPlanning(void);
 
   /**
+   * \brief generate path
+   *
+   * This method generate path using the natural sorting of the links starting in the box point.
+   * USED ONLY FOR CIRCULAR PATH!!!
+   */
+  int generateSecPathFromBox(void);
+
+  /**
    * \brief load links file
    *
    * This method reads the information of links of trajectories structured in a topological way,
@@ -94,27 +114,29 @@ public:
    *
    * @param filePath is the path of file
    */
-  int loadLinksFromFile(char *filePath);
+  int loadLinksFromFile(std::string filePath);
 
   /**
    * \brief load nodes file
    *
    * This method reads the information of nodes of trajectories structured in a topological way,
-   * and it is stored in the class structures.
+   * and it is stored in the class structures. This method needs the link structure
+   * initialized, that is, it needs the "loadLinksFromFile()" method to be executed beforehand.
    *
    * @param filePath is the path of file
    */
-  int loadNodesFromFile(char *filePath);
+  int loadNodesFromFile(std::string filePath);
 
   /**
-   * \brief load goals file
+   * \brief load global goals file
    *
-   * This method reads the information of goals of trajectories,
-   * and it is stored in the class structures.
+   * This method reads the information of global goals of trajectories,
+   * and it is stored in the class structures. This method needs the link structure
+   * initialized, that is, it needs the "loadLinksFromFile()" method to be executed beforehand.
    *
    * @param filePath is the path of file
    */
-  int loadGoalsFromFile(char *filePath);
+  int loadGoalsFromFile(std::string filePath);
 };
 
 #endif
