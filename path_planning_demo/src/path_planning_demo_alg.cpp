@@ -54,6 +54,12 @@ int PathPlanningDemoAlgorithm::managePath(geometry_msgs::PoseStamped& local_goal
   //////////////////////////////////////////////////////////
 
 
+  //////////////////////////////////////////////////////////
+  // Find lost index in path
+
+  //////////////////////////////////////////////////////////
+
+
   /////////////////////////////////////////////////////////
   // Management of the sending of goals.
   if (!flag_request_goal_prev && flag_request_goal)
@@ -94,7 +100,7 @@ int PathPlanningDemoAlgorithm::managePath(geometry_msgs::PoseStamped& local_goal
       // This is for reboot circular path
       if (mode == SECUENTIAL_FROM_BOX)
       {
-        goal_index = 0;
+        goal_index = 2;
       }
       status = END_PATH;
     }

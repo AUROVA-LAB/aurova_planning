@@ -70,6 +70,7 @@ void PathPlanningDemoAlgNode::mainNodeThread(void)
   }
   else if (status == END_PATH)
   {
+    this->local_goal_pub_.publish(this->local_goal_);
     ROS_INFO("END_PATH");
   }
 }
