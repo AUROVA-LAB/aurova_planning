@@ -100,7 +100,7 @@ int PathPlanningDemoAlgorithm::managePath(geometry_msgs::PoseStamped& local_goal
       // This is for reboot circular path
       if (mode == SECUENTIAL_FROM_BOX)
       {
-        goal_index = 2;
+        goal_index = 1;
       }
       status = END_PATH;
     }
