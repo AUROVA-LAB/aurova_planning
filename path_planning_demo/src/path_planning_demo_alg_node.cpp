@@ -15,7 +15,10 @@ PathPlanningDemoAlgNode::PathPlanningDemoAlgNode(void) :
   // [init subscribers]
   this->request_goal_sub_ = this->public_node_handle_.subscribe("/request_goal", 1,
                                                                 &PathPlanningDemoAlgNode::cb_getRequestGoalMsg, this);
-
+  this->reloc_sub_ = this->public_node_handle_.subscribe("/re_locate", 1, &PathPlanningDemoAlgNode::cb_getRelocateMsg,
+                                                         this);
+  this->pose_subscriber_ = this->public_node_handle_.subscribe("/amcl_pose", 1, &PathPlanningDemoAlgNode::cb_getPoseMsg,
+                                                               this);
   // [init services]
 
   // [init clients]
@@ -67,6 +70,7 @@ void PathPlanningDemoAlgNode::mainNodeThread(void)
   if (status == NEW_LOCAL_GOAL)
   {
     this->local_goal_pub_.publish(this->local_goal_);
+    ROS_INFO("NEW_LOCAL_GOAL");
   }
   else if (status == END_PATH)
   {
@@ -80,6 +84,32 @@ void PathPlanningDemoAlgNode::cb_getRequestGoalMsg(const std_msgs::Bool::ConstPt
 {
   this->alg_.lock();
   this->flag_request_goal_.data = flag_msg->data;
+  this->alg_.unlock();
+}
+
+void PathPlanningDemoAlgNode::cb_getRelocateMsg(const std_msgs::Bool::ConstPtr& flag_msg)
+{
+  this->alg_.lock();
+  this->alg_.re_locate_ = true;
+  this->alg_.unlock();
+}
+
+void PathPlanningDemoAlgNode::cb_getPoseMsg(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg)
+{
+  this->alg_.lock();
+
+  //position
+  this->alg_.planning_->st_pose_.pose_x = pose_msg->pose.pose.position.x;
+  this->alg_.planning_->st_pose_.pose_y = pose_msg->pose.pose.position.y;
+
+  //orientation
+  tf::Quaternion q(pose_msg->pose.pose.orientation.x, pose_msg->pose.pose.orientation.y,
+                   pose_msg->pose.pose.orientation.z, pose_msg->pose.pose.orientation.w);
+  tf::Matrix3x3 m(q);
+  double roll, pitch, yaw;
+  m.getRPY(roll, pitch, yaw);
+  this->alg_.planning_->st_pose_.pose_yaw = yaw;
+
   this->alg_.unlock();
 }
 

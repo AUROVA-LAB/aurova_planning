@@ -3,6 +3,7 @@
 PathPlanningDemoAlgorithm::PathPlanningDemoAlgorithm(void)
 {
   this->planning_ = new TopologicPlanning();
+  this->re_locate_ = false;
 
   pthread_mutex_init(&this->access_, NULL);
 }
@@ -26,6 +27,29 @@ void PathPlanningDemoAlgorithm::config_update(Config& config, uint32_t level)
 // PathPlanningDemoAlgorithm Public API
 //////////////////////////////////////////////////////////////
 
+int PathPlanningDemoAlgorithm::findPathIndex(void)
+{
+  int goal_index;
+  int i;
+  float euclidean_distance, x, y;
+  float min_distance = 100000;
+
+  for (i = 0; i < this->planning_->st_path_.num_points; i++)
+  {
+    x = this->planning_->st_path_.points_x[i] - this->planning_->st_pose_.pose_x;
+    y = this->planning_->st_path_.points_y[i] - this->planning_->st_pose_.pose_y;
+    euclidean_distance = sqrt(pow(x, 2) + pow(y, 2));
+
+    if (euclidean_distance < min_distance)
+    {
+      min_distance = euclidean_distance;
+      goal_index = i;
+    }
+  }
+
+  return goal_index + 1;
+}
+
 int PathPlanningDemoAlgorithm::managePath(geometry_msgs::PoseStamped& local_goal, bool flag_request_goal, int mode)
 {
   static int goal_index;
@@ -40,11 +64,7 @@ int PathPlanningDemoAlgorithm::managePath(geometry_msgs::PoseStamped& local_goal
   {
     this->planning_->generateSecPathFromBox();
     goal_index = 0;
-  }
-  else if (first_exec && mode == RANDOM_FROM_BOX)
-  {
-    //this->planning_->generateRandomPathFromBox();
-    goal_index = 0;
+    first_exec = false;
   }
   else if (/*new_path &&*/mode == GLOBAL_GOAL)
   {
@@ -53,12 +73,14 @@ int PathPlanningDemoAlgorithm::managePath(geometry_msgs::PoseStamped& local_goal
   }
   //////////////////////////////////////////////////////////
 
-
   //////////////////////////////////////////////////////////
   // Find lost index in path
-
+  if (this->re_locate_)
+  {
+    goal_index = this->findPathIndex();
+    this->re_locate_ = false;
+  }
   //////////////////////////////////////////////////////////
-
 
   /////////////////////////////////////////////////////////
   // Management of the sending of goals.
@@ -113,7 +135,6 @@ int PathPlanningDemoAlgorithm::managePath(geometry_msgs::PoseStamped& local_goal
 
   // For next execution.
   flag_request_goal_prev = flag_request_goal;
-  first_exec = false;
 
   return status;
 }

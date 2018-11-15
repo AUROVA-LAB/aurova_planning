@@ -39,6 +39,7 @@
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 #include "geometry_msgs/PoseStamped.h"
+#include "geometry_msgs/PoseWithCovarianceStamped.h"
 #include "std_msgs/Bool.h"
 #include "topologic_planning.h"
 
@@ -66,6 +67,7 @@ class PathPlanningDemoAlgorithm
 
     TopologicPlanningPtr planning_;
     std::string frame_id_markers_;
+    bool re_locate_;
 
    /**
     * \brief define config type
@@ -167,6 +169,13 @@ class PathPlanningDemoAlgorithm
      * @param mode (imput) this is the mode of creating path.
      */
     int managePath(geometry_msgs::PoseStamped& local_goal, bool flag_request_goal, int mode);
+
+    /*
+     * \brief Find index into the path
+     *
+     * This fuction returns the index in the path where the vehicle should start.
+     */
+    int findPathIndex (void);
 };
 
 #endif

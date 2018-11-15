@@ -58,11 +58,25 @@ private:
 
   // [subscriber attributes]
   ros::Subscriber request_goal_sub_;
+  ros::Subscriber pose_subscriber_;
+  ros::Subscriber reloc_sub_;
 
   /**
    * \brief callback for read flag for listen request for new goal
    */
   void cb_getRequestGoalMsg(const std_msgs::Bool::ConstPtr& flag_msg);
+
+  /**
+   * \brief callback for read flag for relocate index of path
+   */
+  void cb_getRelocateMsg(const std_msgs::Bool::ConstPtr& flag_msg);
+
+  /**
+   * \brief callback for read pose messages
+   * This message can be read from different localization sources by remapping in the
+   * execution of the node.
+   */
+  void cb_getPoseMsg(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);
 
   // [service attributes]
 

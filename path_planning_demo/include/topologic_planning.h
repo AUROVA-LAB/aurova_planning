@@ -52,6 +52,7 @@ struct Pose
   int point_id;
   float pose_x;
   float pose_y;
+  float pose_yaw;
 };
 
 struct Path
