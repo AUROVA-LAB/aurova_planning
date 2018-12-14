@@ -1,4 +1,5 @@
 #gitignore
 path_planning_demo/src/*.graph
 path_planning_demo/src/trajectories/*.graph
+path_planning_demo/src/trajectories/geometric_traj/*.graph
 
