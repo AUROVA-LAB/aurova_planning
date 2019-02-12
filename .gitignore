@@ -2,4 +2,6 @@
 path_planning_demo/src/*.graph
 path_planning_demo/src/trajectories/*.graph
 path_planning_demo/src/trajectories/geometric_traj/*.graph
+path_planning_demo/scripts/generate_trajectory/inputs/*
+path_planning_demo/scripts/generate_trajectory/outputs/*
 
