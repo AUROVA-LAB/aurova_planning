@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>aurova_planning</name>
-  <version>1.0.0</version>
-  <description>The aurova_planning package</description>
+  <name>global_planning</name>
+  <version>0.0.0</version>
+  <description>The global_planning package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
@@ -19,7 +19,7 @@
   <!-- Url tags are optional, but multiple are allowed, one per tag -->
   <!-- Optional attribute type can be: website, bugtracker, or repository -->
   <!-- Example: -->
-  <!-- <url type="website">http://wiki.ros.org/reactive_hokuyo</url> -->
+  <!-- <url type="website">http://wiki.ros.org/global_planning</url> -->
 
 
   <!-- Author tags are optional, multiple are allowed, one per tag -->
@@ -48,16 +48,15 @@
   <!--   <test_depend>gtest</test_depend> -->
   <!-- Use doc_depend for packages you need only for building documentation: -->
   <!--   <doc_depend>doxygen</doc_depend> -->
-  <exec_depend>get_pose_from_tf</exec_depend>
-  <exec_depend>path_planning_demo</exec_depend>
-  <exec_depend>global_planning</exec_depend>
-
   <buildtool_depend>catkin</buildtool_depend>
-  
+  <build_depend>iri_base_algorithm</build_depend>
+  <build_export_depend>iri_base_algorithm</build_export_depend>
+  <exec_depend>iri_base_algorithm</exec_depend>
+
+
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <!-- Other tools can request additional information be placed here -->
-    <metapackage/>
-  </export>
 
+  </export>
 </package>
