@@ -26,7 +26,9 @@
 #define _global_planning_alg_h_
 
 #include <global_planning/GlobalPlanningConfig.h>
-#include "planning/Planning_Graph.h"
+#include "planning/Graph.h"
+#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
 #include "geometry_msgs/PoseWithCovarianceStamped.h"
 #include "geometry_msgs/PoseStamped.h"
 #include <tf/tf.h>

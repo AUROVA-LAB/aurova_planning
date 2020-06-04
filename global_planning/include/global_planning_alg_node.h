@@ -41,7 +41,17 @@
 class GlobalPlanningAlgNode : public algorithm_base::IriBaseAlgorithm<GlobalPlanningAlgorithm>
 {
 private:
+
+  struct Pose pose_;
+  struct Pose global_goal_;
+  struct Pose slocal_goal_;
+  visualization_msgs::MarkerArray marker_array_;
+  geometry_msgs::PoseStamped local_goal_;
+  Graph *graph_;
+
   // [publisher attributes]
+  ros::Publisher marker_pub_;
+  ros::Publisher local_goal_pub_;
 
   // [subscriber attributes]
   ros::Subscriber goal_subscriber_;
