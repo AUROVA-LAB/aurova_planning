@@ -46,7 +46,7 @@ private:
   struct Pose global_goal_;
   struct Pose slocal_goal_;
   visualization_msgs::MarkerArray marker_array_;
-  geometry_msgs::PoseStamped local_goal_;
+  geometry_msgs::PoseWithCovarianceStamped local_goal_;
   Graph *graph_;
 
   // [publisher attributes]
