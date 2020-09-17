@@ -31,6 +31,7 @@
 #include <visualization_msgs/MarkerArray.h>
 #include "geometry_msgs/PoseWithCovarianceStamped.h"
 #include "geometry_msgs/PoseStamped.h"
+#include "nav_msgs/Odometry.h"
 #include <tf/tf.h>
 
 //include global_planning_alg main library

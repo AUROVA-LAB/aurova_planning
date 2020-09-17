@@ -45,7 +45,9 @@ private:
   struct Pose pose_;
   struct Pose global_goal_;
   struct Pose slocal_goal_;
+  std::vector <struct StNodes> st_nodes_;
   visualization_msgs::MarkerArray marker_array_;
+  std::string frame_id_;
   geometry_msgs::PoseWithCovarianceStamped local_goal_;
   Graph *graph_;
 
@@ -56,6 +58,7 @@ private:
   // [subscriber attributes]
   ros::Subscriber goal_subscriber_;
   ros::Subscriber pose_subscriber_;
+  ros::Subscriber odom_subscriber_;
 
   /**
    * \brief callback for read pose messages
@@ -63,6 +66,13 @@ private:
    * execution of the node.
    */
   void cb_getPoseMsg(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);
+  
+  /**
+   * \brief callback for read odometry messages
+   * This message can be read from different localization sources by remapping in the
+   * execution of the node.
+   */
+  void cb_getOdomMsg(const nav_msgs::Odometry::ConstPtr& odom_msg);
 
   /**
    * \brief callback for read pose messages to use as a goal
@@ -139,6 +149,13 @@ protected:
    * specific algorithms may be added.
    */
   void addNodeDiagnostics(void);
+  
+  /**
+   * \brief Parse the information in alg structure nodes to visualization marker.
+   *
+   * @param marker is structure for visualization.
+   */
+  int parseNodesToRosMarker(visualization_msgs::MarkerArray& marker_array);
 
   // [diagnostic functions]
 
