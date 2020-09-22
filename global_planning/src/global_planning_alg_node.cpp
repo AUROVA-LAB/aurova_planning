@@ -10,7 +10,9 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
   // get aplication parameters
   std::string url_path, type_dist;
   double var_x, var_y, var_z, var_w, rad_reached;
-  int vectors_size = 4;
+  this->vectors_size_ = 4;
+  this->flag_pose_ = false;
+  this->flag_goal_ = false;
   this->public_node_handle_.getParam("/global_planning/url_path", url_path);
   this->public_node_handle_.getParam("/global_planning/frame_id", this->frame_id_);
   this->public_node_handle_.getParam("/global_planning/var_x", var_x);
@@ -23,9 +25,9 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
   //////////////////////////////////////////////////
   // set covariance matrix
   std::vector < std::vector<double> > covariance;
-  covariance.resize(vectors_size);
-  for (int i = 0; i < vectors_size; i++)
-    covariance[i].resize(vectors_size);
+  covariance.resize(this->vectors_size_);
+  for (int i = 0; i < this->vectors_size_; i++)
+    covariance[i].resize(this->vectors_size_);
   covariance[0][0] = var_x;
   covariance[1][1] = var_y;
   covariance[2][2] = var_z;
@@ -37,14 +39,14 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
 
   //////////////////////////////////////////////////
   // inicializations of poses
-  this->pose_.coordinates.resize(vectors_size);
-  this->pose_.matrix.resize(vectors_size);
-  for (int i = 0; i < vectors_size; i++)
-    this->pose_.matrix[i].resize(vectors_size);
-  this->global_goal_.coordinates.resize(vectors_size);
-  this->global_goal_.matrix.resize(vectors_size);
-  for (int i = 0; i < vectors_size; i++)
-    this->global_goal_.matrix[i].resize(vectors_size);
+  this->pose_.coordinates.resize(this->vectors_size_);
+  this->pose_.matrix.resize(this->vectors_size_);
+  for (int i = 0; i < this->vectors_size_; i++)
+    this->pose_.matrix[i].resize(this->vectors_size_);
+  this->global_goal_.coordinates.resize(this->vectors_size_);
+  this->global_goal_.matrix.resize(this->vectors_size_);
+  for (int i = 0; i < this->vectors_size_; i++)
+    this->global_goal_.matrix[i].resize(this->vectors_size_);
   this->global_goal_.matrix[0][0] = var_x;
   this->global_goal_.matrix[1][1] = var_y;
   this->global_goal_.matrix[2][2] = var_z;
@@ -53,7 +55,9 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
   //////////////////////////////////////////////////
   // parse graph to a struct array
   this->st_nodes_ = this->graph_->getStructGraph();
+  this->fromUtmTransform();
   this->parseNodesToRosMarker(this->marker_array_);
+  this->parseLinksToRosMarker(this->marker_array_);
   
   
   // [init publishers]
@@ -85,19 +89,37 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
 {
   // [fill msg structures]
   
-  /*this->slocal_goal_ = this->graph_->getNextPose(this->pose_, this->global_goal_);
+  if (this->flag_pose_ && this->flag_goal_)
+  {
+  
+    this->slocal_goal_ = this->graph_->getNextPose(this->pose_, this->global_goal_);
+    this->st_path_ = this->graph_->getPathPoses(this->pose_, this->global_goal_);
+    
+    //// DEBUG
+    int np = this->st_path_.size();
+    ROS_INFO("number path: %d", np);
+    for(int i = 0; i<np; i++)
+    {
+      double x = this->st_path_[i].coordinates[0] - this->utm_to_frame_.coordinates[0];
+      double y = this->st_path_[i].coordinates[1] - this->utm_to_frame_.coordinates[1];
+      ROS_INFO("x: %f, y: %f", x, y);
+    }
+    //////////
 
-  tf::Quaternion quaternion = tf::createQuaternionFromRPY(0, 0, this->slocal_goal_.coordinates.at(3));
-  this->local_goal_.pose.pose.position.x = this->slocal_goal_.coordinates.at(0);
-  this->local_goal_.pose.pose.position.y = this->slocal_goal_.coordinates.at(1);
-  this->local_goal_.pose.pose.orientation.x = quaternion[0];
-  this->local_goal_.pose.pose.orientation.y = quaternion[1];
-  this->local_goal_.pose.pose.orientation.z = quaternion[2];
-  this->local_goal_.pose.pose.orientation.w = quaternion[3];
-  this->local_goal_.pose.covariance[0] = this->slocal_goal_.matrix[0][0];
-  this->local_goal_.pose.covariance[7] = this->slocal_goal_.matrix[1][1];
-  this->local_goal_.pose.covariance[14] = this->slocal_goal_.matrix[2][2];
-  this->local_goal_.pose.covariance[35] = this->slocal_goal_.matrix[3][3];*/
+    tf::Quaternion quaternion = tf::createQuaternionFromRPY(0, 0, this->slocal_goal_.coordinates.at(3));
+    this->local_goal_.header.frame_id = this->frame_id_;
+    this->local_goal_.pose.pose.position.x = this->slocal_goal_.coordinates.at(0) - this->utm_to_frame_.coordinates[0];
+    this->local_goal_.pose.pose.position.y = this->slocal_goal_.coordinates.at(1) - this->utm_to_frame_.coordinates[1];
+    this->local_goal_.pose.pose.position.z = 0.0;
+    this->local_goal_.pose.pose.orientation.x = quaternion[0];
+    this->local_goal_.pose.pose.orientation.y = quaternion[1];
+    this->local_goal_.pose.pose.orientation.z = quaternion[2];
+    this->local_goal_.pose.pose.orientation.w = quaternion[3];
+    this->local_goal_.pose.covariance[0] = this->slocal_goal_.matrix[0][0];
+    this->local_goal_.pose.covariance[7] = this->slocal_goal_.matrix[1][1];
+    this->local_goal_.pose.covariance[14] = this->slocal_goal_.matrix[2][2];
+    this->local_goal_.pose.covariance[35] = this->slocal_goal_.matrix[3][3];
+  }
 
   // [fill srv structure and make request to the server]
 
@@ -119,14 +141,17 @@ void GlobalPlanningAlgNode::cb_getPoseMsg(const geometry_msgs::PoseWithCovarianc
   tf::Matrix3x3 m_pose(q_pose);
   m_pose.getRPY(roll, pitch, yaw);
 
-  this->pose_.coordinates.at(0) = pose_msg->pose.pose.position.x;
-  this->pose_.coordinates.at(1) = pose_msg->pose.pose.position.y;
-  this->pose_.coordinates.at(2) = pose_msg->pose.pose.position.z;
+  // pose in /utm frame
+  this->pose_.coordinates.at(0) = pose_msg->pose.pose.position.x + this->utm_to_frame_.coordinates[0];
+  this->pose_.coordinates.at(1) = pose_msg->pose.pose.position.y + this->utm_to_frame_.coordinates[1];
+  this->pose_.coordinates.at(2) = this->utm_to_frame_.coordinates[2];
   this->pose_.coordinates.at(3) = yaw;
   this->pose_.matrix[0][0] = pose_msg->pose.covariance[0];
   this->pose_.matrix[1][1] = pose_msg->pose.covariance[7];
   this->pose_.matrix[2][2] = pose_msg->pose.covariance[14];
   this->pose_.matrix[3][3] = pose_msg->pose.covariance[35];
+  
+  this->flag_pose_ = true;
 
   this->alg_.unlock();
 }
@@ -140,14 +165,17 @@ void GlobalPlanningAlgNode::cb_getOdomMsg(const nav_msgs::Odometry::ConstPtr& od
   tf::Matrix3x3 m_pose(q_pose);
   m_pose.getRPY(roll, pitch, yaw);
 
-  this->pose_.coordinates.at(0) = odom_msg->pose.pose.position.x;
-  this->pose_.coordinates.at(1) = odom_msg->pose.pose.position.y;
-  this->pose_.coordinates.at(2) = odom_msg->pose.pose.position.z;
+  // pose in /utm frame
+  this->pose_.coordinates.at(0) = odom_msg->pose.pose.position.x + this->utm_to_frame_.coordinates[0];
+  this->pose_.coordinates.at(1) = odom_msg->pose.pose.position.y + this->utm_to_frame_.coordinates[1];
+  this->pose_.coordinates.at(2) = this->utm_to_frame_.coordinates[2];
   this->pose_.coordinates.at(3) = yaw;
   this->pose_.matrix[0][0] = odom_msg->pose.covariance[0];
   this->pose_.matrix[1][1] = odom_msg->pose.covariance[7];
   this->pose_.matrix[2][2] = odom_msg->pose.covariance[14];
   this->pose_.matrix[3][3] = odom_msg->pose.covariance[35];
+  
+  this->flag_pose_ = true;
 
   this->alg_.unlock();
 }
@@ -160,13 +188,14 @@ void GlobalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseStamped::Cons
                         goal_msg->pose.orientation.w);
   tf::Matrix3x3 m_pose(q_pose);
   m_pose.getRPY(roll, pitch, yaw);
-
-  this->global_goal_.coordinates.at(0) = goal_msg->pose.position.x;
-  this->global_goal_.coordinates.at(1) = goal_msg->pose.position.y;
-  this->global_goal_.coordinates.at(2) = goal_msg->pose.position.z;
+  
+  // goal in /utm frame
+  this->global_goal_.coordinates.at(0) = goal_msg->pose.position.x + this->utm_to_frame_.coordinates[0];
+  this->global_goal_.coordinates.at(1) = goal_msg->pose.position.y + this->utm_to_frame_.coordinates[1];
+  this->global_goal_.coordinates.at(2) = this->utm_to_frame_.coordinates[2];
   this->global_goal_.coordinates.at(3) = yaw;
-
-  this->local_goal_.header.frame_id = goal_msg->header.frame_id;
+  
+  this->flag_goal_ = true;
 
   this->alg_.unlock();
 }
@@ -222,12 +251,12 @@ int GlobalPlanningAlgNode::parseNodesToRosMarker(visualization_msgs::MarkerArray
   marker.lifetime = ros::Duration();
 
   int size_n = this->st_nodes_.size();
-  double x_ref = this->st_nodes_[0].coordinates[0];
-  double y_ref = this->st_nodes_[0].coordinates[1];
+  double x_ref = this->utm_to_frame_.coordinates[0];
+  double y_ref = this->utm_to_frame_.coordinates[1];
   for (i = 0; i < size_n; i++)
   {
     // Set the pose of the marker.  This is a full 6DOF pose relative to the frame/time specified in the header
-    marker.pose.position.x = this->st_nodes_[i].coordinates[0] - x_ref;
+    marker.pose.position.x = this->st_nodes_[i].coordinates[0] - x_ref; //transform /utm to /current_rame
     marker.pose.position.y = this->st_nodes_[i].coordinates[1] - y_ref;
     marker.pose.position.z = 0.0;
     marker.pose.orientation.x = 0.0;
@@ -237,9 +266,85 @@ int GlobalPlanningAlgNode::parseNodesToRosMarker(visualization_msgs::MarkerArray
 
     marker.id = this->st_nodes_[i].id;
     marker_array.markers.push_back(marker);
+    
   }
 
   return 0;
+}
+
+int GlobalPlanningAlgNode::parseLinksToRosMarker(visualization_msgs::MarkerArray& marker_array)
+{
+  int i;
+
+  visualization_msgs::Marker marker;
+
+  marker.header.frame_id = this->frame_id_;
+  marker.header.stamp = ros::Time::now();
+
+  // Set the namespace and id for this marker.  This serves to create a unique ID
+  // Any marker sent with the same namespace and id will overwrite the old one
+  marker.ns = "links";
+  marker.id = 0;
+
+  // Set the marker type.  Initially this is CUBE, and cycles between that and SPHERE, ARROW, and CYLINDER
+  marker.type = visualization_msgs::Marker::LINE_LIST;
+
+  // Set the marker action.  Options are ADD, DELETE, and new in ROS Indigo: 3 (DELETEALL)
+  marker.action = visualization_msgs::Marker::ADD;
+
+  // Set the scale of the marker
+  marker.scale.x = 0.1;
+
+  // Set the color -- be sure to set alpha to something non-zero!
+  marker.color.r = 0.0f;
+  marker.color.g = 1.0f;
+  marker.color.b = 0.0f;
+  marker.color.a = 1.0;
+
+  marker.lifetime = ros::Duration();
+
+  int size_n = this->st_nodes_.size();
+  double x_ref = this->utm_to_frame_.coordinates[0];
+  double y_ref = this->utm_to_frame_.coordinates[1];
+  marker.id = size_n;
+  for (i = 0; i < size_n; i++)
+  {
+  
+    int nl = this->st_nodes_[i].nodesConnected.size();
+    geometry_msgs::Point point;
+    for(int j = 0; j<nl; j++)
+    {
+      marker.pose.orientation.w = 1.0;     
+      point.x = this->st_nodes_[i].coordinates[0] - x_ref; //transform /utm to /current_rame
+      point.y = this->st_nodes_[i].coordinates[1] - y_ref;
+      point.z = 0.0;
+      
+      marker.points.push_back(point);
+
+
+      int id_link = this->st_nodes_[i].nodesConnected[j];
+      marker.pose.orientation.w = 1.0;     
+      point.x = this->st_nodes_[id_link].coordinates[0] - x_ref; //transform /utm to /current_rame
+      point.y = this->st_nodes_[id_link].coordinates[1] - y_ref;
+      point.z = 0.0;
+      
+      marker.points.push_back(point); 
+    }
+    marker_array.markers.push_back(marker);
+    
+  }
+
+  return 0;
+}
+
+void GlobalPlanningAlgNode::fromUtmTransform(void)
+{
+  this->utm_to_frame_.coordinates.resize(this->vectors_size_);
+  this->utm_to_frame_.coordinates[0] = this->st_nodes_[0].coordinates[0] + 10;
+  this->utm_to_frame_.coordinates[1] = this->st_nodes_[0].coordinates[1] + 10;
+  this->utm_to_frame_.coordinates[2] = this->st_nodes_[0].coordinates[2];
+  this->utm_to_frame_.coordinates[3] = this->st_nodes_[0].coordinates[3];
+  return;
 }
 
 /* main function */

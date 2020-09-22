@@ -42,10 +42,15 @@ class GlobalPlanningAlgNode : public algorithm_base::IriBaseAlgorithm<GlobalPlan
 {
 private:
 
+  bool flag_pose_;
+  bool flag_goal_;
+  int vectors_size_;
   struct Pose pose_;
   struct Pose global_goal_;
   struct Pose slocal_goal_;
+  struct Pose utm_to_frame_;
   std::vector <struct StNodes> st_nodes_;
+  std::vector <struct Pose> st_path_;
   visualization_msgs::MarkerArray marker_array_;
   std::string frame_id_;
   geometry_msgs::PoseWithCovarianceStamped local_goal_;
@@ -156,6 +161,18 @@ protected:
    * @param marker is structure for visualization.
    */
   int parseNodesToRosMarker(visualization_msgs::MarkerArray& marker_array);
+  
+  /**
+   * \brief Parse the information in alg structure links to visualization marker.
+   *
+   * @param marker is structure for visualization.
+   */
+  int parseLinksToRosMarker(visualization_msgs::MarkerArray& marker_array);
+  
+  /**
+   * \brief Get transform from /utm to /current_frame.
+   */
+  void fromUtmTransform(void);
 
   // [diagnostic functions]
 
