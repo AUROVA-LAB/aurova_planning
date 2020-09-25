@@ -8,7 +8,7 @@ FIND_PACKAGE(Eigen3 REQUIRED)
 # ******************************************************************** 
 #                 Add catkin additional components here
 # ******************************************************************** 
-find_package(catkin REQUIRED COMPONENTS iri_base_algorithm)
+find_package(catkin REQUIRED COMPONENTS iri_base_algorithm tf)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)

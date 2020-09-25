@@ -56,8 +56,6 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
   // parse graph to a struct array
   this->st_nodes_ = this->graph_->getStructGraph();
   this->fromUtmTransform();
-  this->parseNodesToRosMarker(this->marker_array_);
-  this->parseLinksToRosMarker(this->marker_array_);
   
   
   // [init publishers]
@@ -88,10 +86,17 @@ GlobalPlanningAlgNode::~GlobalPlanningAlgNode(void)
 void GlobalPlanningAlgNode::mainNodeThread(void)
 {
   // [fill msg structures]
+  static bool first_exec = true;
+  if (first_exec)
+  {
+    this->parseNodesToRosMarker(this->marker_array_);
+    this->parseLinksToRosMarker(this->marker_array_);
+  }
+  
   
   if (this->flag_pose_ && this->flag_goal_)
   {
-  
+    
     this->slocal_goal_ = this->graph_->getNextPose(this->pose_, this->global_goal_);
     this->st_path_ = this->graph_->getPathPoses(this->pose_, this->global_goal_);
     
@@ -100,16 +105,40 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
     ROS_INFO("number path: %d", np);
     for(int i = 0; i<np; i++)
     {
-      double x = this->st_path_[i].coordinates[0] - this->utm_to_frame_.coordinates[0];
-      double y = this->st_path_[i].coordinates[1] - this->utm_to_frame_.coordinates[1];
-      ROS_INFO("x: %f, y: %f", x, y);
+      ///////////////////////////////////////////////////////////
+      ///// TRANSFORM TO TF FARME
+      geometry_msgs::PointStamped node_tf;
+      geometry_msgs::PointStamped node_utm;
+      node_utm.header.frame_id = "utm";
+      node_utm.header.stamp = ros::Time(0); //ros::Time::now();
+      node_utm.point.x = this->st_path_[i].coordinates[0];
+      node_utm.point.y = this->st_path_[i].coordinates[1];
+      node_utm.point.z = this->st_path_[i].coordinates[2];
+      try
+      {
+        this->listener_.transformPoint(this->frame_id_, node_utm, node_tf);
+
+      }
+      catch (tf::TransformException& ex)
+      {
+        ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+        return;
+      }
+      ROS_INFO("x: %f, y: %f, z: %f", node_tf.point.x, node_tf.point.y, node_tf.point.z);
     }
-    //////////
+    ///////////////////////////////////////////////////////////
+    
+    /*
+    double x = this->slocal_goal_ .coordinates[0] - this->utm_to_frame_.coordinates[0];
+    double y = this->slocal_goal_ .coordinates[1] - this->utm_to_frame_.coordinates[1];
+    double w = this->utm_to_frame_.coordinates[3];
+    x = x*cos(w) - y*sin(w);
+    y = x*sin(w) + y*cos(w);
 
     tf::Quaternion quaternion = tf::createQuaternionFromRPY(0, 0, this->slocal_goal_.coordinates.at(3));
     this->local_goal_.header.frame_id = this->frame_id_;
-    this->local_goal_.pose.pose.position.x = this->slocal_goal_.coordinates.at(0) - this->utm_to_frame_.coordinates[0];
-    this->local_goal_.pose.pose.position.y = this->slocal_goal_.coordinates.at(1) - this->utm_to_frame_.coordinates[1];
+    this->local_goal_.pose.pose.position.x = x;
+    this->local_goal_.pose.pose.position.y = y;
     this->local_goal_.pose.pose.position.z = 0.0;
     this->local_goal_.pose.pose.orientation.x = quaternion[0];
     this->local_goal_.pose.pose.orientation.y = quaternion[1];
@@ -119,6 +148,7 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
     this->local_goal_.pose.covariance[7] = this->slocal_goal_.matrix[1][1];
     this->local_goal_.pose.covariance[14] = this->slocal_goal_.matrix[2][2];
     this->local_goal_.pose.covariance[35] = this->slocal_goal_.matrix[3][3];
+    */
   }
 
   // [fill srv structure and make request to the server]
@@ -126,6 +156,9 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
   // [fill action structure and make request to the action server]
 
   // [publish messages]
+  this->tf_to_utm_.header.seq = this->tf_to_utm_.header.seq + 1;
+  this->tf_to_utm_.header.stamp = ros::Time::now();
+  this->broadcaster_.sendTransform(this->tf_to_utm_);
   this->local_goal_pub_.publish(this->local_goal_);
   this->marker_pub_.publish(this->marker_array_);
 }
@@ -135,15 +168,21 @@ void GlobalPlanningAlgNode::cb_getPoseMsg(const geometry_msgs::PoseWithCovarianc
 {
   this->alg_.lock();
 
-  double roll, pitch, yaw;
+  /*double roll, pitch, yaw;
   tf::Quaternion q_pose(pose_msg->pose.pose.orientation.x, pose_msg->pose.pose.orientation.y,
                         pose_msg->pose.pose.orientation.z, pose_msg->pose.pose.orientation.w);
   tf::Matrix3x3 m_pose(q_pose);
   m_pose.getRPY(roll, pitch, yaw);
 
+  double x = pose_msg->pose.pose.position.x + this->utm_to_frame_.coordinates[0];
+  double y = pose_msg->pose.pose.position.y + this->utm_to_frame_.coordinates[1];
+  double w = this->utm_to_frame_.coordinates[3];
+  x = x*cos(-w) - y*sin(-w);
+  y = x*sin(-w) + y*cos(-w);
+    
   // pose in /utm frame
-  this->pose_.coordinates.at(0) = pose_msg->pose.pose.position.x + this->utm_to_frame_.coordinates[0];
-  this->pose_.coordinates.at(1) = pose_msg->pose.pose.position.y + this->utm_to_frame_.coordinates[1];
+  this->pose_.coordinates.at(0) = x;
+  this->pose_.coordinates.at(1) = y;
   this->pose_.coordinates.at(2) = this->utm_to_frame_.coordinates[2];
   this->pose_.coordinates.at(3) = yaw;
   this->pose_.matrix[0][0] = pose_msg->pose.covariance[0];
@@ -151,24 +190,64 @@ void GlobalPlanningAlgNode::cb_getPoseMsg(const geometry_msgs::PoseWithCovarianc
   this->pose_.matrix[2][2] = pose_msg->pose.covariance[14];
   this->pose_.matrix[3][3] = pose_msg->pose.covariance[35];
   
-  this->flag_pose_ = true;
+  this->flag_pose_ = true;*/
 
   this->alg_.unlock();
 }
 void GlobalPlanningAlgNode::cb_getOdomMsg(const nav_msgs::Odometry::ConstPtr& odom_msg)
 {
   this->alg_.lock();
+  
+  
+  ///////////////////////////////////////////////////////////
+  ///// TRANSFORM TO TF FARME
+  geometry_msgs::PointStamped node_tf;
+  geometry_msgs::PointStamped node_utm;
+  node_tf.header.frame_id = this->frame_id_;
+  node_tf.header.stamp = ros::Time(0); //ros::Time::now();
+  node_tf.point.x = odom_msg->pose.pose.position.x;
+  node_tf.point.y = odom_msg->pose.pose.position.y;
+  node_tf.point.z = odom_msg->pose.pose.position.z;
+  try
+  {
+    this->listener_.transformPoint("utm", node_tf, node_utm);
 
+  }
+  catch (tf::TransformException& ex)
+  {
+    ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+    return;
+  }
+  
+  geometry_msgs::QuaternionStamped orient_tf;
+  geometry_msgs::QuaternionStamped orient_utm;
+  orient_tf.header.frame_id = this->frame_id_;
+  orient_tf.header.stamp = ros::Time(0);
+  orient_tf.quaternion.x = odom_msg->pose.pose.orientation.x;
+  orient_tf.quaternion.y = odom_msg->pose.pose.orientation.y;
+  orient_tf.quaternion.z = odom_msg->pose.pose.orientation.z;
+  orient_tf.quaternion.w = odom_msg->pose.pose.orientation.w;
+  try
+  {
+    this->listener_.transformQuaternion("utm", orient_tf, orient_utm);
+
+  }
+  catch (tf::TransformException& ex)
+  {
+    ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+    return;
+  }
   double roll, pitch, yaw;
-  tf::Quaternion q_pose(odom_msg->pose.pose.orientation.x, odom_msg->pose.pose.orientation.y,
-                        odom_msg->pose.pose.orientation.z, odom_msg->pose.pose.orientation.w);
+  tf::Quaternion q_pose(orient_utm.quaternion.x, orient_utm.quaternion.y,
+                        orient_utm.quaternion.z, orient_utm.quaternion.w);
   tf::Matrix3x3 m_pose(q_pose);
   m_pose.getRPY(roll, pitch, yaw);
-
-  // pose in /utm frame
-  this->pose_.coordinates.at(0) = odom_msg->pose.pose.position.x + this->utm_to_frame_.coordinates[0];
-  this->pose_.coordinates.at(1) = odom_msg->pose.pose.position.y + this->utm_to_frame_.coordinates[1];
-  this->pose_.coordinates.at(2) = this->utm_to_frame_.coordinates[2];
+  ///////////////////////////////////////////////////////////
+  
+  // pose in utm frame
+  this->pose_.coordinates.at(0) = node_utm.point.x;
+  this->pose_.coordinates.at(1) = node_utm.point.y;
+  this->pose_.coordinates.at(2) = node_utm.point.z;
   this->pose_.coordinates.at(3) = yaw;
   this->pose_.matrix[0][0] = odom_msg->pose.covariance[0];
   this->pose_.matrix[1][1] = odom_msg->pose.covariance[7];
@@ -182,17 +261,56 @@ void GlobalPlanningAlgNode::cb_getOdomMsg(const nav_msgs::Odometry::ConstPtr& od
 void GlobalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseStamped::ConstPtr& goal_msg)
 {
   this->alg_.lock();
+  
+  ///////////////////////////////////////////////////////////
+  ///// TRANSFORM TO TF FARME
+  geometry_msgs::PointStamped node_tf;
+  geometry_msgs::PointStamped node_utm;
+  node_tf.header.frame_id = this->frame_id_;
+  node_tf.header.stamp = ros::Time(0); //ros::Time::now();
+  node_tf.point.x = goal_msg->pose.position.x;
+  node_tf.point.y = goal_msg->pose.position.y;
+  node_tf.point.z = goal_msg->pose.position.z;
+  try
+  {
+    this->listener_.transformPoint("utm", node_tf, node_utm);
 
+  }
+  catch (tf::TransformException& ex)
+  {
+    ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+    return;
+  }
+  
+  geometry_msgs::QuaternionStamped orient_tf;
+  geometry_msgs::QuaternionStamped orient_utm;
+  orient_tf.header.frame_id = this->frame_id_;
+  orient_tf.header.stamp = ros::Time(0);
+  orient_tf.quaternion.x = goal_msg->pose.orientation.x;
+  orient_tf.quaternion.y = goal_msg->pose.orientation.y;
+  orient_tf.quaternion.z = goal_msg->pose.orientation.z;
+  orient_tf.quaternion.w = goal_msg->pose.orientation.w;
+  try
+  {
+    this->listener_.transformQuaternion("utm", orient_tf, orient_utm);
+
+  }
+  catch (tf::TransformException& ex)
+  {
+    ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+    return;
+  }
   double roll, pitch, yaw;
-  tf::Quaternion q_pose(goal_msg->pose.orientation.x, goal_msg->pose.orientation.y, goal_msg->pose.orientation.z,
-                        goal_msg->pose.orientation.w);
+  tf::Quaternion q_pose(orient_utm.quaternion.x, orient_utm.quaternion.y,
+                        orient_utm.quaternion.z, orient_utm.quaternion.w);
   tf::Matrix3x3 m_pose(q_pose);
   m_pose.getRPY(roll, pitch, yaw);
+  ///////////////////////////////////////////////////////////
   
   // goal in /utm frame
-  this->global_goal_.coordinates.at(0) = goal_msg->pose.position.x + this->utm_to_frame_.coordinates[0];
-  this->global_goal_.coordinates.at(1) = goal_msg->pose.position.y + this->utm_to_frame_.coordinates[1];
-  this->global_goal_.coordinates.at(2) = this->utm_to_frame_.coordinates[2];
+  this->global_goal_.coordinates.at(0) = node_utm.point.x;
+  this->global_goal_.coordinates.at(1) = node_utm.point.y;
+  this->global_goal_.coordinates.at(2) = node_utm.point.z;
   this->global_goal_.coordinates.at(3) = yaw;
   
   this->flag_goal_ = true;
@@ -249,15 +367,34 @@ int GlobalPlanningAlgNode::parseNodesToRosMarker(visualization_msgs::MarkerArray
   marker.color.a = 1.0;
 
   marker.lifetime = ros::Duration();
-
+  
+  geometry_msgs::PointStamped node_tf;
+  geometry_msgs::PointStamped node_utm;
+  node_utm.header.frame_id = "utm";
+  node_utm.header.stamp = ros::Time(0); //ros::Time::now();
   int size_n = this->st_nodes_.size();
-  double x_ref = this->utm_to_frame_.coordinates[0];
-  double y_ref = this->utm_to_frame_.coordinates[1];
   for (i = 0; i < size_n; i++)
   {
+  
+    node_utm.point.x = this->st_nodes_[i].coordinates[0];
+    node_utm.point.y = this->st_nodes_[i].coordinates[1];
+    node_utm.point.z = 0.0;
+    //node_utm.transform.rotation = tf::createQuaternionMsgFromYaw(this->st_nodes_[1].coordinates[3]);
+  
+    try
+    {
+      this->listener_.transformPoint(this->frame_id_, node_utm, node_tf);
+
+    }
+    catch (tf::TransformException& ex)
+    {
+      ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+      return 0;
+    }
+  
     // Set the pose of the marker.  This is a full 6DOF pose relative to the frame/time specified in the header
-    marker.pose.position.x = this->st_nodes_[i].coordinates[0] - x_ref; //transform /utm to /current_rame
-    marker.pose.position.y = this->st_nodes_[i].coordinates[1] - y_ref;
+    marker.pose.position.x = node_tf.point.x;
+    marker.pose.position.y = node_tf.point.y;
     marker.pose.position.z = 0.0;
     marker.pose.orientation.x = 0.0;
     marker.pose.orientation.y = 0.0;
@@ -303,9 +440,11 @@ int GlobalPlanningAlgNode::parseLinksToRosMarker(visualization_msgs::MarkerArray
 
   marker.lifetime = ros::Duration();
 
+  geometry_msgs::PointStamped node_tf;
+  geometry_msgs::PointStamped node_utm;
+  node_utm.header.frame_id = "utm";
+  node_utm.header.stamp = ros::Time(0); //ros::Time::now();
   int size_n = this->st_nodes_.size();
-  double x_ref = this->utm_to_frame_.coordinates[0];
-  double y_ref = this->utm_to_frame_.coordinates[1];
   marker.id = size_n;
   for (i = 0; i < size_n; i++)
   {
@@ -314,18 +453,42 @@ int GlobalPlanningAlgNode::parseLinksToRosMarker(visualization_msgs::MarkerArray
     geometry_msgs::Point point;
     for(int j = 0; j<nl; j++)
     {
-      marker.pose.orientation.w = 1.0;     
-      point.x = this->st_nodes_[i].coordinates[0] - x_ref; //transform /utm to /current_rame
-      point.y = this->st_nodes_[i].coordinates[1] - y_ref;
+        
+      node_utm.point.x = this->st_nodes_[i].coordinates[0];
+      node_utm.point.y = this->st_nodes_[i].coordinates[1];
+      node_utm.point.z = 0.0;
+      try
+      {
+        this->listener_.transformPoint(this->frame_id_, node_utm, node_tf);
+
+      }
+      catch (tf::TransformException& ex)
+      {
+        ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+        return 0;
+      }
+      point.x = node_tf.point.x; 
+      point.y = node_tf.point.y;
       point.z = 0.0;
       
       marker.points.push_back(point);
 
-
       int id_link = this->st_nodes_[i].nodesConnected[j];
-      marker.pose.orientation.w = 1.0;     
-      point.x = this->st_nodes_[id_link].coordinates[0] - x_ref; //transform /utm to /current_rame
-      point.y = this->st_nodes_[id_link].coordinates[1] - y_ref;
+      node_utm.point.x = this->st_nodes_[id_link].coordinates[0];
+      node_utm.point.y = this->st_nodes_[id_link].coordinates[1];
+      node_utm.point.z = 0.0;
+      try
+      {
+        this->listener_.transformPoint(this->frame_id_, node_utm, node_tf);
+
+      }
+      catch (tf::TransformException& ex)
+      {
+        ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+        return 0;
+      }
+      point.x = node_tf.point.x; 
+      point.y = node_tf.point.y;
       point.z = 0.0;
       
       marker.points.push_back(point); 
@@ -339,11 +502,17 @@ int GlobalPlanningAlgNode::parseLinksToRosMarker(visualization_msgs::MarkerArray
 
 void GlobalPlanningAlgNode::fromUtmTransform(void)
 {
-  this->utm_to_frame_.coordinates.resize(this->vectors_size_);
-  this->utm_to_frame_.coordinates[0] = this->st_nodes_[0].coordinates[0] + 10;
-  this->utm_to_frame_.coordinates[1] = this->st_nodes_[0].coordinates[1] + 10;
-  this->utm_to_frame_.coordinates[2] = this->st_nodes_[0].coordinates[2];
-  this->utm_to_frame_.coordinates[3] = this->st_nodes_[0].coordinates[3];
+  
+  this->tf_to_utm_.header.frame_id = "utm";
+  this->tf_to_utm_.child_frame_id = this->frame_id_;
+  this->tf_to_utm_.header.stamp = ros::Time::now();
+  this->tf_to_utm_.transform.translation.x = this->st_nodes_[0].coordinates[0];
+  this->tf_to_utm_.transform.translation.y = this->st_nodes_[0].coordinates[1];
+  this->tf_to_utm_.transform.translation.z = this->st_nodes_[0].coordinates[2];
+  this->tf_to_utm_.transform.rotation = tf::createQuaternionMsgFromYaw(PI/2.0);
+  
+  this->broadcaster_.sendTransform(this->tf_to_utm_);
+  
   return;
 }
 

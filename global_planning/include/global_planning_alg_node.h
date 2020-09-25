@@ -28,6 +28,8 @@
 #include <iri_base_algorithm/iri_base_algorithm.h>
 #include "global_planning_alg.h"
 
+#define PI 3.141592
+
 // [publisher subscriber headers]
 
 // [service client headers]
@@ -54,6 +56,9 @@ private:
   visualization_msgs::MarkerArray marker_array_;
   std::string frame_id_;
   geometry_msgs::PoseWithCovarianceStamped local_goal_;
+  geometry_msgs::TransformStamped tf_to_utm_;
+  tf::TransformBroadcaster broadcaster_;
+  tf::TransformListener listener_;
   Graph *graph_;
 
   // [publisher attributes]
