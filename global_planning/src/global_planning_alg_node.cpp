@@ -100,6 +100,23 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
     this->slocal_goal_ = this->graph_->getNextPose(this->pose_, this->global_goal_);
     this->st_path_ = this->graph_->getPathPoses(this->pose_, this->global_goal_);
     
+    ///////////////////////////////////////////////////////////
+    //// DEBUG UTM
+    ROS_INFO("pose => x: %f, y: %f, z: %f, yaw: %f", this->pose_.coordinates[0], this->pose_.coordinates[1],
+                                                     this->pose_.coordinates[2], this->pose_.coordinates[3]);
+    ROS_INFO("goal => x: %f, y: %f, z: %f, yaw: %f", this->global_goal_.coordinates[0], this->global_goal_.coordinates[1],
+                                                     this->global_goal_.coordinates[2], this->global_goal_.coordinates[3]);
+    ROS_INFO("node => x: %f, y: %f, z: %f, yaw: %f", this->st_nodes_[0].coordinates[0], this->st_nodes_[0].coordinates[1],
+                                                     this->st_nodes_[0].coordinates[2], this->st_nodes_[0].coordinates[3]);
+    ROS_INFO("localg => x: %f, y: %f, z: %f, yaw: %f", this->slocal_goal_.coordinates[0], this->slocal_goal_.coordinates[1],
+                                                       this->slocal_goal_.coordinates[2], this->slocal_goal_.coordinates[3]);
+    
+    
+    ///////////////////////////////////////////////////////////
+    
+    
+    
+    ///////////////////////////////////////////////////////////
     //// DEBUG
     int np = this->st_path_.size();
     ROS_INFO("number path: %d", np);
@@ -124,31 +141,69 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
         ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
         return;
       }
-      ROS_INFO("x: %f, y: %f, z: %f", node_tf.point.x, node_tf.point.y, node_tf.point.z);
+      ROS_INFO("path n %d => x: %f, y: %f, z: %f, yaw: %f", i, this->st_path_[i].coordinates[0], this->st_path_[i].coordinates[1],
+                                                               this->st_path_[i].coordinates[2], this->st_path_[i].coordinates[3]);
+                                                               //node_tf.point.x, node_tf.point.y, node_tf.point.z);
+      ///////////////////////////////////////////////////////////
     }
     ///////////////////////////////////////////////////////////
     
-    /*
-    double x = this->slocal_goal_ .coordinates[0] - this->utm_to_frame_.coordinates[0];
-    double y = this->slocal_goal_ .coordinates[1] - this->utm_to_frame_.coordinates[1];
-    double w = this->utm_to_frame_.coordinates[3];
-    x = x*cos(w) - y*sin(w);
-    y = x*sin(w) + y*cos(w);
+    
+    ///////////////////////////////////////////////////////////
+    ///// TRANSFORM TO TF FARME
+    geometry_msgs::PointStamped node_tf;
+    geometry_msgs::PointStamped node_utm;
+    node_utm.header.frame_id = "utm";
+    node_utm.header.stamp = ros::Time(0); //ros::Time::now();
+    node_utm.point.x = this->slocal_goal_ .coordinates[0];
+    node_utm.point.y = this->slocal_goal_ .coordinates[1];
+    node_utm.point.z = this->slocal_goal_ .coordinates[2];
+    try
+    {
+      this->listener_.transformPoint(this->frame_id_, node_utm, node_tf);
 
-    tf::Quaternion quaternion = tf::createQuaternionFromRPY(0, 0, this->slocal_goal_.coordinates.at(3));
+    }
+    catch (tf::TransformException& ex)
+    {
+      ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+      return;
+    }
+    double yaw = this->slocal_goal_.coordinates[3];
+    yaw = (yaw * PI) / 180.0;
+    tf::Quaternion quat_utm = tf::createQuaternionFromRPY(0, 0, yaw);
+    geometry_msgs::QuaternionStamped orient_tf;
+    geometry_msgs::QuaternionStamped orient_utm;
+    orient_utm.header.frame_id = "utm";
+    orient_utm.header.stamp = ros::Time(0);
+    orient_utm.quaternion.x =  quat_utm[0];
+    orient_utm.quaternion.y =  quat_utm[1];
+    orient_utm.quaternion.z =  quat_utm[2];
+    orient_utm.quaternion.w =  quat_utm[3];
+    try
+    {
+      this->listener_.transformQuaternion(this->frame_id_, orient_utm, orient_tf);
+
+    }
+    catch (tf::TransformException& ex)
+    {
+      ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+      return;
+    }
+    ///////////////////////////////////////////////////////////
+
     this->local_goal_.header.frame_id = this->frame_id_;
-    this->local_goal_.pose.pose.position.x = x;
-    this->local_goal_.pose.pose.position.y = y;
+    this->local_goal_.pose.pose.position.x = node_tf.point.x;
+    this->local_goal_.pose.pose.position.y = node_tf.point.y;
     this->local_goal_.pose.pose.position.z = 0.0;
-    this->local_goal_.pose.pose.orientation.x = quaternion[0];
-    this->local_goal_.pose.pose.orientation.y = quaternion[1];
-    this->local_goal_.pose.pose.orientation.z = quaternion[2];
-    this->local_goal_.pose.pose.orientation.w = quaternion[3];
+    this->local_goal_.pose.pose.orientation.x = orient_tf.quaternion.x;
+    this->local_goal_.pose.pose.orientation.y = orient_tf.quaternion.y;
+    this->local_goal_.pose.pose.orientation.z = orient_tf.quaternion.z;
+    this->local_goal_.pose.pose.orientation.w = orient_tf.quaternion.w;
     this->local_goal_.pose.covariance[0] = this->slocal_goal_.matrix[0][0];
     this->local_goal_.pose.covariance[7] = this->slocal_goal_.matrix[1][1];
     this->local_goal_.pose.covariance[14] = this->slocal_goal_.matrix[2][2];
     this->local_goal_.pose.covariance[35] = this->slocal_goal_.matrix[3][3];
-    */
+    
   }
 
   // [fill srv structure and make request to the server]
@@ -242,6 +297,7 @@ void GlobalPlanningAlgNode::cb_getOdomMsg(const nav_msgs::Odometry::ConstPtr& od
                         orient_utm.quaternion.z, orient_utm.quaternion.w);
   tf::Matrix3x3 m_pose(q_pose);
   m_pose.getRPY(roll, pitch, yaw);
+  yaw = (yaw * 180.0) / PI;
   ///////////////////////////////////////////////////////////
   
   // pose in utm frame
@@ -305,6 +361,7 @@ void GlobalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseStamped::Cons
                         orient_utm.quaternion.z, orient_utm.quaternion.w);
   tf::Matrix3x3 m_pose(q_pose);
   m_pose.getRPY(roll, pitch, yaw);
+  yaw = (yaw * 180.0) / PI;
   ///////////////////////////////////////////////////////////
   
   // goal in /utm frame
