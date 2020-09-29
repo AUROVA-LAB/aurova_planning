@@ -204,6 +204,8 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
     this->local_goal_.pose.covariance[14] = this->slocal_goal_.matrix[2][2];
     this->local_goal_.pose.covariance[35] = this->slocal_goal_.matrix[3][3];
     
+    this->local_goal_pub_.publish(this->local_goal_);
+    
   }
 
   // [fill srv structure and make request to the server]
@@ -214,7 +216,6 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
   this->tf_to_utm_.header.seq = this->tf_to_utm_.header.seq + 1;
   this->tf_to_utm_.header.stamp = ros::Time::now();
   this->broadcaster_.sendTransform(this->tf_to_utm_);
-  this->local_goal_pub_.publish(this->local_goal_);
   this->marker_pub_.publish(this->marker_array_);
 }
 
@@ -223,29 +224,63 @@ void GlobalPlanningAlgNode::cb_getPoseMsg(const geometry_msgs::PoseWithCovarianc
 {
   this->alg_.lock();
 
-  /*double roll, pitch, yaw;
-  tf::Quaternion q_pose(pose_msg->pose.pose.orientation.x, pose_msg->pose.pose.orientation.y,
-                        pose_msg->pose.pose.orientation.z, pose_msg->pose.pose.orientation.w);
+  ///////////////////////////////////////////////////////////
+  ///// TRANSFORM TO TF FARME
+  geometry_msgs::PointStamped node_tf;
+  geometry_msgs::PointStamped node_utm;
+  node_tf.header.frame_id = this->frame_id_;
+  node_tf.header.stamp = ros::Time(0); //ros::Time::now();
+  node_tf.point.x = pose_msg->pose.pose.position.x;
+  node_tf.point.y = pose_msg->pose.pose.position.y;
+  node_tf.point.z = pose_msg->pose.pose.position.z;
+  try
+  {
+    this->listener_.transformPoint("utm", node_tf, node_utm);
+
+  }
+  catch (tf::TransformException& ex)
+  {
+    ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+    return;
+  }
+  
+  geometry_msgs::QuaternionStamped orient_tf;
+  geometry_msgs::QuaternionStamped orient_utm;
+  orient_tf.header.frame_id = this->frame_id_;
+  orient_tf.header.stamp = ros::Time(0);
+  orient_tf.quaternion.x = pose_msg->pose.pose.orientation.x;
+  orient_tf.quaternion.y = pose_msg->pose.pose.orientation.y;
+  orient_tf.quaternion.z = pose_msg->pose.pose.orientation.z;
+  orient_tf.quaternion.w = pose_msg->pose.pose.orientation.w;
+  try
+  {
+    this->listener_.transformQuaternion("utm", orient_tf, orient_utm);
+
+  }
+  catch (tf::TransformException& ex)
+  {
+    ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+    return;
+  }
+  double roll, pitch, yaw;
+  tf::Quaternion q_pose(orient_utm.quaternion.x, orient_utm.quaternion.y,
+                        orient_utm.quaternion.z, orient_utm.quaternion.w);
   tf::Matrix3x3 m_pose(q_pose);
   m_pose.getRPY(roll, pitch, yaw);
-
-  double x = pose_msg->pose.pose.position.x + this->utm_to_frame_.coordinates[0];
-  double y = pose_msg->pose.pose.position.y + this->utm_to_frame_.coordinates[1];
-  double w = this->utm_to_frame_.coordinates[3];
-  x = x*cos(-w) - y*sin(-w);
-  y = x*sin(-w) + y*cos(-w);
-    
-  // pose in /utm frame
-  this->pose_.coordinates.at(0) = x;
-  this->pose_.coordinates.at(1) = y;
-  this->pose_.coordinates.at(2) = this->utm_to_frame_.coordinates[2];
+  yaw = (yaw * 180.0) / PI;
+  ///////////////////////////////////////////////////////////
+  
+  // pose in utm frame
+  this->pose_.coordinates.at(0) = node_utm.point.x;
+  this->pose_.coordinates.at(1) = node_utm.point.y;
+  this->pose_.coordinates.at(2) = node_utm.point.z;
   this->pose_.coordinates.at(3) = yaw;
   this->pose_.matrix[0][0] = pose_msg->pose.covariance[0];
   this->pose_.matrix[1][1] = pose_msg->pose.covariance[7];
   this->pose_.matrix[2][2] = pose_msg->pose.covariance[14];
   this->pose_.matrix[3][3] = pose_msg->pose.covariance[35];
   
-  this->flag_pose_ = true;*/
+  this->flag_pose_ = true;
 
   this->alg_.unlock();
 }
