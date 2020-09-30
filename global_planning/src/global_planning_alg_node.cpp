@@ -102,6 +102,7 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
     
     ///////////////////////////////////////////////////////////
     //// DEBUG UTM
+    /*
     ROS_INFO("pose => x: %f, y: %f, z: %f, yaw: %f", this->pose_.coordinates[0], this->pose_.coordinates[1],
                                                      this->pose_.coordinates[2], this->pose_.coordinates[3]);
     ROS_INFO("goal => x: %f, y: %f, z: %f, yaw: %f", this->global_goal_.coordinates[0], this->global_goal_.coordinates[1],
@@ -110,14 +111,14 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
                                                      this->st_nodes_[0].coordinates[2], this->st_nodes_[0].coordinates[3]);
     ROS_INFO("localg => x: %f, y: %f, z: %f, yaw: %f", this->slocal_goal_.coordinates[0], this->slocal_goal_.coordinates[1],
                                                        this->slocal_goal_.coordinates[2], this->slocal_goal_.coordinates[3]);
-    
-    
+    */
     ///////////////////////////////////////////////////////////
     
     
     
     ///////////////////////////////////////////////////////////
     //// DEBUG
+    /*
     int np = this->st_path_.size();
     ROS_INFO("number path: %d", np);
     for(int i = 0; i<np; i++)
@@ -146,6 +147,7 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
                                                                //node_tf.point.x, node_tf.point.y, node_tf.point.z);
       ///////////////////////////////////////////////////////////
     }
+    */
     ///////////////////////////////////////////////////////////
     
     
