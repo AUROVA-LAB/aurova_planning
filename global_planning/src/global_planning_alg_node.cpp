@@ -91,6 +91,7 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
   {
     this->parseNodesToRosMarker(this->marker_array_);
     this->parseLinksToRosMarker(this->marker_array_);
+    first_exec = false;
   }
   
   
@@ -101,7 +102,7 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
     this->st_path_ = this->graph_->getPathPoses(this->pose_, this->global_goal_);
     
     ///////////////////////////////////////////////////////////
-    //// DEBUG UTM
+    //// DEBUG
     /*
     ROS_INFO("pose => x: %f, y: %f, z: %f, yaw: %f", this->pose_.coordinates[0], this->pose_.coordinates[1],
                                                      this->pose_.coordinates[2], this->pose_.coordinates[3]);
@@ -111,14 +112,7 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
                                                      this->st_nodes_[0].coordinates[2], this->st_nodes_[0].coordinates[3]);
     ROS_INFO("localg => x: %f, y: %f, z: %f, yaw: %f", this->slocal_goal_.coordinates[0], this->slocal_goal_.coordinates[1],
                                                        this->slocal_goal_.coordinates[2], this->slocal_goal_.coordinates[3]);
-    */
-    ///////////////////////////////////////////////////////////
-    
-    
-    
-    ///////////////////////////////////////////////////////////
-    //// DEBUG
-    /*
+                                                       
     int np = this->st_path_.size();
     ROS_INFO("number path: %d", np);
     for(int i = 0; i<np; i++)
@@ -452,7 +446,7 @@ int GlobalPlanningAlgNode::parseNodesToRosMarker(visualization_msgs::MarkerArray
   // Set the scale of the marker -- 1x1x1 here means 1m on a side
   marker.scale.x = 1.0;
   marker.scale.y = 1.0;
-  marker.scale.z = 1.0;
+  marker.scale.z = 0.1;
 
   // Set the color -- be sure to set alpha to something non-zero!
   marker.color.r = 0.0f;
@@ -524,7 +518,7 @@ int GlobalPlanningAlgNode::parseLinksToRosMarker(visualization_msgs::MarkerArray
   marker.action = visualization_msgs::Marker::ADD;
 
   // Set the scale of the marker
-  marker.scale.x = 0.1;
+  marker.scale.x = 0.025;
 
   // Set the color -- be sure to set alpha to something non-zero!
   marker.color.r = 0.0f;
