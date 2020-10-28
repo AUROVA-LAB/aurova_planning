@@ -47,6 +47,8 @@ private:
   bool flag_pose_;
   bool flag_goal_;
   int vectors_size_;
+  double rad_reached_;
+  int index_path_;
   struct Pose pose_;
   struct Pose global_goal_;
   struct Pose slocal_goal_;
@@ -166,6 +168,13 @@ protected:
    * @param marker is structure for visualization.
    */
   int parseNodesToRosMarker(visualization_msgs::MarkerArray& marker_array);
+  
+  /**
+   * \brief Parse the information in alg structure nodes to visualization marker.
+   *
+   * @param marker is structure for visualization.
+   */
+  int parsePathToRosMarker(visualization_msgs::MarkerArray& marker_array);
   
   /**
    * \brief Parse the information in alg structure links to visualization marker.

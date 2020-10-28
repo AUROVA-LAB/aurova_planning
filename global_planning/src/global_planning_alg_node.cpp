@@ -9,8 +9,9 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
   //////////////////////////////////////////////////
   // get aplication parameters
   std::string url_path, type_dist;
-  double var_x, var_y, var_z, var_w, rad_reached;
+  double var_x, var_y, var_z, var_w;
   this->vectors_size_ = 4;
+  this->index_path_ = 0;
   this->flag_pose_ = false;
   this->flag_goal_ = false;
   this->public_node_handle_.getParam("/global_planning/url_path", url_path);
@@ -20,7 +21,7 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
   this->public_node_handle_.getParam("/global_planning/var_z", var_z);
   this->public_node_handle_.getParam("/global_planning/var_w", var_w);
   this->public_node_handle_.getParam("/global_planning/type_dist", type_dist);
-  this->public_node_handle_.getParam("/global_planning/rad_reached", rad_reached);
+  this->public_node_handle_.getParam("/global_planning/rad_reached", this->rad_reached_);
 
   //////////////////////////////////////////////////
   // set covariance matrix
@@ -35,7 +36,7 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
 
   //////////////////////////////////////////////////
   // class constructor for graph
-  this->graph_ = new Graph(url_path, covariance, type_dist, rad_reached);
+  this->graph_ = new Graph(url_path, covariance, type_dist, this->rad_reached_);
 
   //////////////////////////////////////////////////
   // inicializations of poses
@@ -64,8 +65,8 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
       > ("/semilocal_goal", 1);
 
   // [init subscribers]
-  this->odom_subscriber_ = this->public_node_handle_.subscribe("/odom", 1, &GlobalPlanningAlgNode::cb_getOdomMsg, this);
-  this->pose_subscriber_ = this->public_node_handle_.subscribe("/pose_sim", 1, &GlobalPlanningAlgNode::cb_getPoseMsg, this);
+  //this->odom_subscriber_ = this->public_node_handle_.subscribe("/odom", 1, &GlobalPlanningAlgNode::cb_getOdomMsg, this);
+  this->pose_subscriber_ = this->public_node_handle_.subscribe("/pose_plot", 1, &GlobalPlanningAlgNode::cb_getPoseMsg, this);
   this->goal_subscriber_ = this->public_node_handle_.subscribe("/move_base_simple/goal", 1,
                                                                &GlobalPlanningAlgNode::cb_getGoalMsg, this);
 
@@ -98,51 +99,14 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
   if (this->flag_pose_ && this->flag_goal_)
   {
     
-    this->slocal_goal_ = this->graph_->getNextPose(this->pose_, this->global_goal_);
-    this->st_path_ = this->graph_->getPathPoses(this->pose_, this->global_goal_);
+    float diff_x = this->st_path_[index_path_].coordinates[0] - this->pose_.coordinates[0];
+    float diff_y = this->st_path_[index_path_].coordinates[1] - this->pose_.coordinates[1];
+    float distance = sqrt(pow(diff_x, 2) + pow(diff_y, 2));
     
-    ///////////////////////////////////////////////////////////
-    //// DEBUG
-    /*
-    ROS_INFO("pose => x: %f, y: %f, z: %f, yaw: %f", this->pose_.coordinates[0], this->pose_.coordinates[1],
-                                                     this->pose_.coordinates[2], this->pose_.coordinates[3]);
-    ROS_INFO("goal => x: %f, y: %f, z: %f, yaw: %f", this->global_goal_.coordinates[0], this->global_goal_.coordinates[1],
-                                                     this->global_goal_.coordinates[2], this->global_goal_.coordinates[3]);
-    ROS_INFO("node => x: %f, y: %f, z: %f, yaw: %f", this->st_nodes_[0].coordinates[0], this->st_nodes_[0].coordinates[1],
-                                                     this->st_nodes_[0].coordinates[2], this->st_nodes_[0].coordinates[3]);
-    ROS_INFO("localg => x: %f, y: %f, z: %f, yaw: %f", this->slocal_goal_.coordinates[0], this->slocal_goal_.coordinates[1],
-                                                       this->slocal_goal_.coordinates[2], this->slocal_goal_.coordinates[3]);
-                                                       
-    int np = this->st_path_.size();
-    ROS_INFO("number path: %d", np);
-    for(int i = 0; i<np; i++)
+    if ((distance < this->rad_reached_) && (index_path_+1 < this->st_path_.size()))
     {
-      ///////////////////////////////////////////////////////////
-      ///// TRANSFORM TO TF FARME
-      geometry_msgs::PointStamped node_tf;
-      geometry_msgs::PointStamped node_utm;
-      node_utm.header.frame_id = "utm";
-      node_utm.header.stamp = ros::Time(0); //ros::Time::now();
-      node_utm.point.x = this->st_path_[i].coordinates[0];
-      node_utm.point.y = this->st_path_[i].coordinates[1];
-      node_utm.point.z = this->st_path_[i].coordinates[2];
-      try
-      {
-        this->listener_.transformPoint(this->frame_id_, node_utm, node_tf);
-
-      }
-      catch (tf::TransformException& ex)
-      {
-        ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
-        return;
-      }
-      ROS_INFO("path n %d => x: %f, y: %f, z: %f, yaw: %f", i, this->st_path_[i].coordinates[0], this->st_path_[i].coordinates[1],
-                                                               this->st_path_[i].coordinates[2], this->st_path_[i].coordinates[3]);
-                                                               //node_tf.point.x, node_tf.point.y, node_tf.point.z);
-      ///////////////////////////////////////////////////////////
+      index_path_ = index_path_ + 1;
     }
-    */
-    ///////////////////////////////////////////////////////////
     
     
     ///////////////////////////////////////////////////////////
@@ -151,9 +115,9 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
     geometry_msgs::PointStamped node_utm;
     node_utm.header.frame_id = "utm";
     node_utm.header.stamp = ros::Time(0); //ros::Time::now();
-    node_utm.point.x = this->slocal_goal_ .coordinates[0];
-    node_utm.point.y = this->slocal_goal_ .coordinates[1];
-    node_utm.point.z = this->slocal_goal_ .coordinates[2];
+    node_utm.point.x = this->st_path_[index_path_].coordinates[0];
+    node_utm.point.y = this->st_path_[index_path_].coordinates[1];
+    node_utm.point.z = 0.0;
     try
     {
       this->listener_.transformPoint(this->frame_id_, node_utm, node_tf);
@@ -164,7 +128,7 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
       ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
       return;
     }
-    double yaw = this->slocal_goal_.coordinates[3];
+    double yaw = this->st_path_[index_path_].coordinates[3];
     yaw = (yaw * PI) / 180.0;
     tf::Quaternion quat_utm = tf::createQuaternionFromRPY(0, 0, yaw);
     geometry_msgs::QuaternionStamped orient_tf;
@@ -195,10 +159,10 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
     this->local_goal_.pose.pose.orientation.y = orient_tf.quaternion.y;
     this->local_goal_.pose.pose.orientation.z = orient_tf.quaternion.z;
     this->local_goal_.pose.pose.orientation.w = orient_tf.quaternion.w;
-    this->local_goal_.pose.covariance[0] = this->slocal_goal_.matrix[0][0];
-    this->local_goal_.pose.covariance[7] = this->slocal_goal_.matrix[1][1];
-    this->local_goal_.pose.covariance[14] = this->slocal_goal_.matrix[2][2];
-    this->local_goal_.pose.covariance[35] = this->slocal_goal_.matrix[3][3];
+    this->local_goal_.pose.covariance[0] = this->global_goal_.matrix[0][0];
+    this->local_goal_.pose.covariance[7] = this->global_goal_.matrix[1][1];
+    this->local_goal_.pose.covariance[14] = this->global_goal_.matrix[2][2];
+    this->local_goal_.pose.covariance[35] = this->global_goal_.matrix[3][3];
     
     this->local_goal_pub_.publish(this->local_goal_);
     
@@ -269,7 +233,7 @@ void GlobalPlanningAlgNode::cb_getPoseMsg(const geometry_msgs::PoseWithCovarianc
   // pose in utm frame
   this->pose_.coordinates.at(0) = node_utm.point.x;
   this->pose_.coordinates.at(1) = node_utm.point.y;
-  this->pose_.coordinates.at(2) = node_utm.point.z;
+  this->pose_.coordinates.at(2) = this->st_nodes_[0].coordinates[2]; //node_utm.point.z;
   this->pose_.coordinates.at(3) = yaw;
   this->pose_.matrix[0][0] = pose_msg->pose.covariance[0];
   this->pose_.matrix[1][1] = pose_msg->pose.covariance[7];
@@ -334,7 +298,7 @@ void GlobalPlanningAlgNode::cb_getOdomMsg(const nav_msgs::Odometry::ConstPtr& od
   // pose in utm frame
   this->pose_.coordinates.at(0) = node_utm.point.x;
   this->pose_.coordinates.at(1) = node_utm.point.y;
-  this->pose_.coordinates.at(2) = node_utm.point.z;
+  this->pose_.coordinates.at(2) = this->st_nodes_[0].coordinates[2]; //node_utm.point.z;
   this->pose_.coordinates.at(3) = yaw;
   this->pose_.matrix[0][0] = odom_msg->pose.covariance[0];
   this->pose_.matrix[1][1] = odom_msg->pose.covariance[7];
@@ -401,8 +365,18 @@ void GlobalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseStamped::Cons
   this->global_goal_.coordinates.at(2) = node_utm.point.z;
   this->global_goal_.coordinates.at(3) = yaw;
   
-  this->flag_goal_ = true;
-
+  if (this->flag_pose_)
+  {
+    visualization_msgs::MarkerArray marker_array;
+    ROS_INFO("******** pre-execution ********");
+    this->st_path_ = this->graph_->getPathPoses(this->pose_, this->global_goal_);
+    ROS_INFO("******** pos-execution ********");
+    this->parsePathToRosMarker(marker_array);
+    this->marker_pub_.publish(marker_array);
+    this->index_path_ = 0;
+    this->flag_goal_ = true;
+  }
+  
   this->alg_.unlock();
 }
 
@@ -435,7 +409,6 @@ int GlobalPlanningAlgNode::parseNodesToRosMarker(visualization_msgs::MarkerArray
   // Set the namespace and id for this marker.  This serves to create a unique ID
   // Any marker sent with the same namespace and id will overwrite the old one
   marker.ns = "nodes";
-  marker.id = 0;
 
   // Set the marker type.  Initially this is CUBE, and cycles between that and SPHERE, ARROW, and CYLINDER
   marker.type = visualization_msgs::Marker::SPHERE;
@@ -490,6 +463,76 @@ int GlobalPlanningAlgNode::parseNodesToRosMarker(visualization_msgs::MarkerArray
     marker.pose.orientation.w = 1.0;
 
     marker.id = this->st_nodes_[i].id;
+    marker_array.markers.push_back(marker);
+    
+  }
+
+  return 0;
+}
+
+int GlobalPlanningAlgNode::parsePathToRosMarker(visualization_msgs::MarkerArray& marker_array)
+{
+  int i;
+
+  visualization_msgs::Marker marker;
+
+  marker.header.frame_id = this->frame_id_;
+  marker.header.stamp = ros::Time::now();
+
+  // Set the namespace and id for this marker.  This serves to create a unique ID
+  // Any marker sent with the same namespace and id will overwrite the old one
+  marker.ns = "path";
+
+  // Set the marker type.  Initially this is CUBE, and cycles between that and SPHERE, ARROW, and CYLINDER
+  marker.type = visualization_msgs::Marker::SPHERE;
+
+  // Set the marker action.  Options are ADD, DELETE, and new in ROS Indigo: 3 (DELETEALL)
+  marker.action = visualization_msgs::Marker::ADD;
+
+  // Set the scale of the marker -- 1x1x1 here means 1m on a side
+  marker.scale.x = 0.6;
+  marker.scale.y = 0.6;
+  marker.scale.z = 0.6;
+
+  // Set the color -- be sure to set alpha to something non-zero!
+  marker.color.r = 0.0f;
+  marker.color.g = 1.0f;
+  marker.color.b = 1.0f;
+  marker.color.a = 1.0;
+
+  marker.lifetime = ros::Duration();
+  
+  geometry_msgs::PointStamped node_tf;
+  geometry_msgs::PointStamped node_utm;
+  node_utm.header.frame_id = "utm";
+  node_utm.header.stamp = ros::Time(0); //ros::Time::now();
+  int size_n = this->st_path_.size();
+  for (i = 0; i < size_n; i++)
+  {
+    node_utm.point.x = this->st_path_[i].coordinates[0];
+    node_utm.point.y = this->st_path_[i].coordinates[1];
+    node_utm.point.z = 0.0;
+    try
+    {
+      this->listener_.transformPoint(this->frame_id_, node_utm, node_tf);
+
+    }
+    catch (tf::TransformException& ex)
+    {
+      ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+      return 0;
+    }
+  
+    // Set the pose of the marker.  This is a full 6DOF pose relative to the frame/time specified in the header
+    marker.pose.position.x = node_tf.point.x;
+    marker.pose.position.y = node_tf.point.y;
+    marker.pose.position.z = 0.0;
+    marker.pose.orientation.x = 0.0;
+    marker.pose.orientation.y = 0.0;
+    marker.pose.orientation.z = 0.0;
+    marker.pose.orientation.w = 1.0;
+    
+    marker.id = 1000 + i;
     marker_array.markers.push_back(marker);
     
   }
