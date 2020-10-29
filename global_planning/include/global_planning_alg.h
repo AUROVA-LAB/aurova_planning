@@ -27,8 +27,6 @@
 
 #include <global_planning/GlobalPlanningConfig.h>
 #include <planning/graph.h>
-#include <planning/planning_graph.h>
-#include <planning/util.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 #include "geometry_msgs/PoseWithCovarianceStamped.h"
