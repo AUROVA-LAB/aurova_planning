@@ -25,10 +25,7 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
 
   //////////////////////////////////////////////////
   // set covariance matrix
-  std::vector < std::vector<double> > covariance;
-  covariance.resize(this->vectors_size_);
-  for (int i = 0; i < this->vectors_size_; i++)
-    covariance[i].resize(this->vectors_size_);
+  std::vector < std::vector<double> > covariance = Util::newMatrix();
   covariance[0][0] = var_x;
   covariance[1][1] = var_y;
   covariance[2][2] = var_z;
@@ -36,7 +33,8 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
 
   //////////////////////////////////////////////////
   // class constructor for graph
-  this->graph_ = new Graph(url_path, covariance, type_dist, this->rad_reached_);
+  Util::Distances type_dist2 = Util::Euclidean; // TODO: from param
+  this->graph_ = new Graph(url_path, covariance, type_dist2, this->rad_reached_);
 
   //////////////////////////////////////////////////
   // inicializations of poses
