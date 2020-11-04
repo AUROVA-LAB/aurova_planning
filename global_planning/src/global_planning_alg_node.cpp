@@ -126,8 +126,7 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
       ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
       return;
     }
-    double yaw = this->st_path_[index_path_].coordinates[3];
-    yaw = (yaw * PI) / 180.0;
+    double yaw = this->getYawFromPath(index_path_);
     tf::Quaternion quat_utm = tf::createQuaternionFromRPY(0, 0, yaw);
     geometry_msgs::QuaternionStamped orient_tf;
     geometry_msgs::QuaternionStamped orient_utm;
@@ -643,6 +642,25 @@ void GlobalPlanningAlgNode::fromUtmTransform(void)
   this->broadcaster_.sendTransform(this->tf_to_utm_);
   
   return;
+}
+
+double GlobalPlanningAlgNode::getYawFromPath(int index_path)
+{
+  double yaw;
+  
+  if (index_path + 1 == this->st_path_.size())
+  {
+    yaw = this->st_path_[index_path].coordinates[3];
+    yaw = (yaw * PI) / 180.0;
+  }
+  else
+  {
+    float diff_x = this->st_path_[index_path+1].coordinates[0] - this->st_path_[index_path].coordinates[0];
+    float diff_y = this->st_path_[index_path+1].coordinates[1] - this->st_path_[index_path].coordinates[1];
+    yaw = atan2(diff_y, diff_x);
+  }
+  
+  return yaw;
 }
 
 /* main function */

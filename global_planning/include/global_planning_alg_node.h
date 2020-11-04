@@ -187,6 +187,11 @@ protected:
    * \brief Get transform from /utm to /current_frame.
    */
   void fromUtmTransform(void);
+  
+  /**
+   * \brief Get yaw from a path node in next node direction
+   */
+  double getYawFromPath(int index_path);
 
   // [diagnostic functions]
 
