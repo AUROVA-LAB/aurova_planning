@@ -4,13 +4,15 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   algorithm_base::IriBaseAlgorithm<LocalPlanningAlgorithm>()
 {
   //init class attributes if necessary
-  //this->loop_rate_ = 2;//in [Hz]
+  this->loop_rate_ = 20;//in [Hz]
   
   this->local_planning_ = new LocalPlanning();
 
   // [init publishers]
   
   // [init subscribers]
+  this->lidar_subscriber_ = this->public_node_handle_.subscribe("/velodyne_points", 1,
+                                                                &LocalPlanningAlgNode::cb_lidarInfo, this);
   
   // [init services]
   
@@ -38,6 +40,12 @@ void LocalPlanningAlgNode::mainNodeThread(void)
 }
 
 /*  [subscriber callbacks] */
+void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr& scan)
+{
+  this->alg_.lock();
+  
+  this->alg_.unlock();
+}
 
 /*  [service callbacks] */
 

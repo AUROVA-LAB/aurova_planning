@@ -26,8 +26,10 @@
 #define _local_planning_alg_node_h_
 
 #include <iri_base_algorithm/iri_base_algorithm.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <planning/local_planning.h>
 #include "local_planning_alg.h"
-#include "planning/local_planning.h"
+
 
 // [publisher subscriber headers]
 
@@ -48,6 +50,12 @@ class LocalPlanningAlgNode : public algorithm_base::IriBaseAlgorithm<LocalPlanni
     // [publisher attributes]
 
     // [subscriber attributes]
+    ros::Subscriber lidar_subscriber_;
+    
+    /**
+     * \brief Callback for read lidar messages.
+     */
+    void cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr& scan);
 
     // [service attributes]
 
