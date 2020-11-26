@@ -27,6 +27,7 @@
 
 #include <iri_base_algorithm/iri_base_algorithm.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <pcl_ros/point_cloud.h>
 #include <planning/local_planning.h>
 #include "local_planning_alg.h"
 
@@ -46,8 +47,11 @@ class LocalPlanningAlgNode : public algorithm_base::IriBaseAlgorithm<LocalPlanni
   private:
   
     LocalPlanning *local_planning_;
+    local_planning_lib::SensorConfiguration lidar_config_;
+    local_planning_lib::FilteringConfiguration filter_config_;
     
     // [publisher attributes]
+    ros::Publisher lidar_publisher_;
 
     // [subscriber attributes]
     ros::Subscriber lidar_subscriber_;

@@ -52,12 +52,16 @@
 
   <build_depend>iri_base_algorithm</build_depend>
   <build_depend>tf</build_depend>
+  <build_depend>pcl_ros</build_depend>
+  <build_depend>pcl_conversions</build_depend>
 
   <build_export_depend>iri_base_algorithm</build_export_depend>
   <build_export_depend>tf</build_export_depend>
 
   <exec_depend>iri_base_algorithm</exec_depend>
   <exec_depend>tf</exec_depend>
+  <exec_depend>pcl_ros</exec_depend>
+  <exec_depend>pcl_conversions</exec_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->
