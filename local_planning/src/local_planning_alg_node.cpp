@@ -34,6 +34,7 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   
   // [init publishers]
   this->lidar_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/velodyne_obstacles", 1);
+  this->obstacles_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_obstacles", 1);
   
   // [init subscribers]
   this->lidar_subscriber_ = this->public_node_handle_.subscribe("/velodyne_points", 1,
@@ -73,6 +74,7 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   pcl::PCLPointCloud2 scan_pcl2;
   static pcl::PointCloud<pcl::PointXYZ> scan_pcl;
   static pcl::PointCloud<pcl::PointXYZ> scan_pcl_filt;
+  static pcl::PointCloud<pcl::PointXYZ> perimeter_pcl;
 
   pcl_conversions::toPCL(*scan, scan_pcl2);
   pcl::fromPCLPointCloud2(scan_pcl2, scan_pcl);
@@ -80,12 +82,17 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   this->local_planning_->freeSpaceMap(scan_pcl,
                                       this->lidar_config_,
                                       this->filter_config_,
-                                      scan_pcl_filt);
+                                      scan_pcl_filt,
+                                      perimeter_pcl);
                                       
   pcl::toPCLPointCloud2(scan_pcl_filt, scan_pcl2);
   pcl_conversions::fromPCL(scan_pcl2, scan_filt);
   
-  this->lidar_publisher_.publish(scan_filt);
+  scan_pcl_filt.header.frame_id = "/velodyne"; //TODO: get from param.
+  perimeter_pcl.header.frame_id = "/velodyne";
+  //ROS_INFO("size: %f", scan_pcl_filt.points.size());
+  this->lidar_publisher_.publish(scan_pcl_filt);
+  this->obstacles_publisher_.publish(perimeter_pcl);
   
   this->alg_.unlock();
 }
