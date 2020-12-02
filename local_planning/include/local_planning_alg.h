@@ -26,6 +26,17 @@
 #define _local_planning_alg_h_
 
 #include <local_planning/LocalPlanningConfig.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <pcl_ros/point_cloud.h>
+#include <planning/local_planning.h>
+#include <image_transport/image_transport.h>
+#include <opencv/cv.h>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <cv_bridge/cv_bridge.h>
+
+#define EMPTY_PIXEL 0.0
+#define MAX_PIXEL 255.0
 
 //include local_planning_alg main library
 
@@ -126,6 +137,10 @@ class LocalPlanningAlgorithm
     *
     */
     ~LocalPlanningAlgorithm(void);
+    
+    void potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> free_space, 
+                            int size, int offset,
+                            cv::Mat& pf_map);
 };
 
 #endif

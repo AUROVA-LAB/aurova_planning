@@ -6,7 +6,12 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   //init class attributes if necessary
   this->loop_rate_ = 20;//in [Hz]
   
+  cvInitFont(&this->font_, CV_FONT_HERSHEY_SIMPLEX, 1.0, 1.0);
+  image_transport::ImageTransport it_(this->public_node_handle_);
+  
   this->local_planning_ = new LocalPlanning();
+  
+  this->public_node_handle_.getParam("/local_planning/frame_lidar", this->frame_lidar_);
   
   this->public_node_handle_.getParam("/filter_configuration/max_range", filter_config_.max_range);
   this->public_node_handle_.getParam("/filter_configuration/min_range", filter_config_.min_range);
@@ -35,6 +40,7 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   // [init publishers]
   this->lidar_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/velodyne_obstacles", 1);
   this->obstacles_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_obstacles", 1);
+  this->plot_publisher_ = it_.advertise("/plot_pf_map", 1);
   
   // [init subscribers]
   this->lidar_subscriber_ = this->public_node_handle_.subscribe("/velodyne_points", 1,
@@ -70,11 +76,14 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
 {
   this->alg_.lock();
   
+  
+  //////////////////////////////////////////////////
+  //// free-space perimeter calculation
   sensor_msgs::PointCloud2 scan_filt;
   pcl::PCLPointCloud2 scan_pcl2;
   static pcl::PointCloud<pcl::PointXYZ> scan_pcl;
   static pcl::PointCloud<pcl::PointXYZ> scan_pcl_filt;
-  static pcl::PointCloud<pcl::PointXYZ> perimeter_pcl;
+  static pcl::PointCloud<pcl::PointXYZ> free_space_pcl;
 
   pcl_conversions::toPCL(*scan, scan_pcl2);
   pcl::fromPCLPointCloud2(scan_pcl2, scan_pcl);
@@ -83,16 +92,32 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
                                       this->lidar_config_,
                                       this->filter_config_,
                                       scan_pcl_filt,
-                                      perimeter_pcl);
+                                      free_space_pcl);
                                       
   pcl::toPCLPointCloud2(scan_pcl_filt, scan_pcl2);
   pcl_conversions::fromPCL(scan_pcl2, scan_filt);
   
-  scan_pcl_filt.header.frame_id = "/velodyne"; //TODO: get from param.
-  perimeter_pcl.header.frame_id = "/velodyne";
-  //ROS_INFO("size: %f", scan_pcl_filt.points.size());
+  scan_pcl_filt.header.frame_id = this->frame_lidar_;
+  free_space_pcl.header.frame_id = this->frame_lidar_;
   this->lidar_publisher_.publish(scan_pcl_filt);
-  this->obstacles_publisher_.publish(perimeter_pcl);
+  this->obstacles_publisher_.publish(free_space_pcl);
+  //////////////////////////////////////////////////
+  
+  
+  //////////////////////////////////////////////////
+  //// potential forces map calculation
+  int offset = (int)(filter_config_.max_range); 
+  int size = offset * 2;
+  cv::Mat pf_map(size, size, CV_8UC3, EMPTY_PIXEL);
+  this->alg_.potentialForcesMap(free_space_pcl, size, offset, pf_map);
+  
+  //plot
+  std_msgs::Header header; // empty header
+  header.stamp = ros::Time::now(); // time
+  cv_bridge::CvImage output_bridge;
+  output_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::RGB8, pf_map);
+  this->plot_publisher_.publish(output_bridge.toImageMsg());
+  //////////////////////////////////////////////////
   
   this->alg_.unlock();
 }

@@ -8,10 +8,17 @@ FIND_PACKAGE(Eigen3 REQUIRED)
 # ******************************************************************** 
 #                 Add catkin additional components here
 # ******************************************************************** 
-find_package(catkin REQUIRED COMPONENTS iri_base_algorithm 
-                                        tf 
-                                        pcl_ros
-                                        pcl_conversions)
+find_package(catkin REQUIRED COMPONENTS
+  iri_base_algorithm
+  OpenCV
+  cv_bridge
+  image_transport
+  image_geometry
+  image_view
+  tf
+  pcl_ros
+  pcl_conversions
+)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -86,6 +93,7 @@ include_directories(include)
 include_directories(${catkin_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${EIGEN_INCLUDE_DIR})
 include_directories(${PCL_INCLUDE_DIRS})
+include_directories(${OpenCV_INCLUDE_DIRS})
 # include_directories(${<dependency>_INCLUDE_DIR})
 
 ## Declare a cpp library
@@ -100,6 +108,7 @@ add_executable(${PROJECT_NAME} src/local_planning_alg.cpp src/local_planning_alg
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
 TARGET_LINK_LIBRARIES(${PROJECT_NAME} planning)
 target_link_libraries(${PROJECT_NAME} ${PCL_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBRARIES})
 # target_link_libraries(${PROJECT_NAME} ${<dependency>_LIBRARY})
 
 # ******************************************************************** 
