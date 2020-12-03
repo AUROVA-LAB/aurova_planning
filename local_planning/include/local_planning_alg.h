@@ -139,7 +139,7 @@ class LocalPlanningAlgorithm
     ~LocalPlanningAlgorithm(void);
     
     void potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> free_space, 
-                            int size, int offset,
+                            int size, int offset, int scale,
                             cv::Mat& pf_map);
 };
 

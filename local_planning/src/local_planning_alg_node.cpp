@@ -76,6 +76,8 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
 {
   this->alg_.lock();
   
+  double ini, end;
+  ini = ros::Time::now().toSec();
   
   //////////////////////////////////////////////////
   //// free-space perimeter calculation
@@ -106,10 +108,11 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   
   //////////////////////////////////////////////////
   //// potential forces map calculation
-  int offset = (int)(filter_config_.max_range); 
+  int scale = 1;
+  int offset = (int)(filter_config_.max_range * scale); 
   int size = offset * 2;
   cv::Mat pf_map(size, size, CV_8UC3, EMPTY_PIXEL);
-  this->alg_.potentialForcesMap(free_space_pcl, size, offset, pf_map);
+  this->alg_.potentialForcesMap(free_space_pcl, size, offset, scale, pf_map);
   
   //plot
   std_msgs::Header header; // empty header
@@ -118,6 +121,10 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   output_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::RGB8, pf_map);
   this->plot_publisher_.publish(output_bridge.toImageMsg());
   //////////////////////////////////////////////////
+  
+  // loop time
+  end = ros::Time::now().toSec();
+  ROS_INFO("duration: %f", end - ini);
   
   this->alg_.unlock();
 }
