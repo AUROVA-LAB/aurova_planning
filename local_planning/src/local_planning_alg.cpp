@@ -23,36 +23,36 @@ void LocalPlanningAlgorithm::config_update(Config& config, uint32_t level)
 // LocalPlanningAlgorithm Public API
 
 void LocalPlanningAlgorithm::potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> free_space, 
-                                                int size, int offset, int scale,
+                                                cv::Point2f goal_lidar,
+                                                PFConfig pf_config,
                                                 cv::Mat& pf_map)
 {
   float in_out_flag;
   bool measure_dist = true;
   int i, j, k, u1, v1, u2, v2;
-  std::vector<cv::Point2f> vertices(free_space.points.size() + 1);
-  cv::Mat polygon(size, size, CV_8UC1, EMPTY_PIXEL);
+  cv::Mat polygon(pf_config.size_y, pf_config.size_x, CV_8UC1, EMPTY_PIXEL);
+  //std::vector<cv::Point2f> vertices(free_space.points.size() + 1);
   
   //build polygon from vertex
   for (i = 0; i < free_space.points.size()-1; ++i)
   {
-    u1 = (int)(free_space.points[i].x * scale) + offset;
-    v1 = (int)(free_space.points[i].y * scale) + offset;
-    u2 = (int)(free_space.points[i+1].x * scale) + offset;
-    v2 = (int)(free_space.points[i+1].y * scale) + offset;
+    u1 = (int)(free_space.points[i].x * pf_config.scale) + pf_config.offset_x;
+    v1 = (int)(free_space.points[i].y * pf_config.scale) + pf_config.offset_y;
+    u2 = (int)(free_space.points[i+1].x * pf_config.scale) + pf_config.offset_x;
+    v2 = (int)(free_space.points[i+1].y * pf_config.scale) + pf_config.offset_y;
     cv::line(polygon, cv::Point(u1, v1),  cv::Point(u2, v2), cv::Scalar(MAX_PIXEL), 1);
   }
   u1 = u2;
   v1 = v2;
-  u2 = (int)(free_space.points[0].x * scale) + offset;
-  v2 = (int)(free_space.points[0].y * scale) + offset;
+  u2 = (int)(free_space.points[0].x * pf_config.scale) + pf_config.offset_x;
+  v2 = (int)(free_space.points[0].y * pf_config.scale) + pf_config.offset_y;
   cv::line(polygon, cv::Point(u1, v1),  cv::Point(u2, v2), cv::Scalar(MAX_PIXEL), 1);
   
   // build contour
   vector<vector<cv::Point> > contour;
   cv::findContours(polygon, contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
-  
+
   // build potential map
-  float wr = 1.0, wa = 1.0, ar = 0.5; //TODO: get drom param
   float force, distance, min_distance;
   cv::Mat forces_map(polygon.size(), CV_32F);
   for(i = 0; i < pf_map.rows; i++)
@@ -62,12 +62,12 @@ void LocalPlanningAlgorithm::potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> f
       in_out_flag = (float)cv::pointPolygonTest(contour[0], cv::Point2f((float)j, (float)i), measure_dist);
       if (in_out_flag > 0)
       {
-        force = 0.0;
-        min_distance = (float)size * 2;
+        force = 10.0;
+        min_distance = sqrt(pow((float)(pf_config.size_x), 2.0) + pow((float)(pf_config.size_y), 2.0));
         for (k = 0; k < free_space.points.size(); ++k)
         {
-          u1 = (int)(free_space.points[k].x * scale) + offset;
-          v1 = (int)(free_space.points[k].y * scale) + offset;
+          u1 = (int)(free_space.points[k].x * pf_config.scale) + pf_config.offset_x;
+          v1 = (int)(free_space.points[k].y * pf_config.scale) + pf_config.offset_y;
           
           distance = sqrt(pow((float)(u1 - j), 2.0) + pow((float)(v1 - i), 2.0));
           
@@ -76,8 +76,17 @@ void LocalPlanningAlgorithm::potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> f
             min_distance = distance;
           }
         }
+        
         if (min_distance == 0.0) min_distance = 1.0;
-        force = wr / pow(min_distance, ar);
+        force = pf_config.wr / pow(min_distance, pf_config.ar);
+        
+        u1 = (int)(goal_lidar.x * pf_config.scale) + pf_config.offset_x;
+        v1 = (int)(goal_lidar.y * pf_config.scale) + pf_config.offset_y;
+        distance = sqrt(pow((float)(u1 - j), 2.0) + pow((float)(v1 - i), 2.0));
+        
+        if (distance == 0.0) distance = 1.0;
+        force = force - pf_config.wa / pow(distance, pf_config.aa);
+        
         forces_map.at<float>(i,j) = force;
       }
       else
@@ -107,8 +116,9 @@ void LocalPlanningAlgorithm::potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> f
       }
     }
   }
-  
+
   cv::applyColorMap(pf_map, pf_map, cv::COLORMAP_JET);
+  
   //pf_map = polygon;
   //cv::imshow("Source", polygon);	
   return;

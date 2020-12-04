@@ -47,7 +47,13 @@ class LocalPlanningAlgNode : public algorithm_base::IriBaseAlgorithm<LocalPlanni
     local_planning_lib::SensorConfiguration lidar_config_;
     local_planning_lib::FilteringConfiguration filter_config_;
     CvFont font_;
+    cv::Point2f goal_lidar_;
+    std::string frame_id_;
     std::string frame_lidar_;
+    tf::TransformListener listener_;
+    PFConfig pf_config_;
+    std::string out_path_map_;
+    bool save_map_;
     
     // [publisher attributes]
     ros::Publisher lidar_publisher_;
@@ -56,11 +62,19 @@ class LocalPlanningAlgNode : public algorithm_base::IriBaseAlgorithm<LocalPlanni
 
     // [subscriber attributes]
     ros::Subscriber lidar_subscriber_;
+    ros::Subscriber goal_subscriber_;
     
     /**
      * \brief Callback for read lidar messages.
      */
     void cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr& scan);
+    
+    /**
+    * \brief callback for read pose messages to use as a goal
+    * This message can be read from different goal sources by remapping in the
+    * execution of the node.
+    */
+    void cb_getGoalMsg(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& goal_msg);
 
     // [service attributes]
 
