@@ -24,7 +24,7 @@ void LocalPlanningAlgorithm::config_update(Config& config, uint32_t level)
 
 void LocalPlanningAlgorithm::potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> free_space, 
                                                 cv::Point2f goal_lidar,
-                                                PFConfig pf_config,
+                                                PFConfig& pf_config,
                                                 cv::Mat& pf_map)
 {
   float in_out_flag;
@@ -91,7 +91,7 @@ void LocalPlanningAlgorithm::potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> f
       }
       else
       {
-        forces_map.at<float>(i,j) = EMPTY_PIXEL;
+        forces_map.at<float>(i,j) = INVALID_PIXEL;
       }
     }
   }
@@ -102,24 +102,66 @@ void LocalPlanningAlgorithm::potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> f
   cv::Point min_dist_pt;
   cv::minMaxLoc(forces_map, &min_val, &max_val, &min_dist_pt, &max_dist_pt);
   ROS_INFO("max_val: %f, min_val: %f", max_val, min_val);
+  pf_config.min_pt_x = min_dist_pt.x;
+  pf_config.min_pt_y = min_dist_pt.y;
   max_val = max_val - min_val;
   for(i = 0; i < polygon.rows; i++)
   {
     for(j = 0; j < polygon.cols; j++)
     {
     
-      if (forces_map.at<float>(i,j) != 0.0)
+      if (forces_map.at<float>(i,j) != INVALID_PIXEL)
       {
         pf_map.at<cv::Vec3b>(i,j)[0] = (uchar)(((forces_map.at<float>(i,j) - min_val) / max_val) * MAX_PIXEL);
         pf_map.at<cv::Vec3b>(i,j)[1] = pf_map.at<cv::Vec3b>(i,j)[0];
         pf_map.at<cv::Vec3b>(i,j)[2] = pf_map.at<cv::Vec3b>(i,j)[0];
       }
+      else
+      {
+        pf_map.at<cv::Vec3b>(i,j)[0] = (uchar)(MAX_PIXEL);
+        pf_map.at<cv::Vec3b>(i,j)[1] = pf_map.at<cv::Vec3b>(i,j)[0];
+        pf_map.at<cv::Vec3b>(i,j)[2] = pf_map.at<cv::Vec3b>(i,j)[0];
+      }
     }
   }
-
-  cv::applyColorMap(pf_map, pf_map, cv::COLORMAP_JET);
   
   //pf_map = polygon;
   //cv::imshow("Source", polygon);	
+  return;
+}
+
+void LocalPlanningAlgorithm::findLocalMin(cv::Mat pf_map, cv::Mat& local_min_map)
+{
+  int i, j, n, m;
+  bool is_min;
+  int mask = 2;
+  
+  for(i = mask; i < local_min_map.rows-mask; i++)
+  {
+    for(j = mask; j < local_min_map.cols-mask; j++)
+    {
+      is_min = true;
+      for(n = -mask; n <= mask; n++)
+      {
+        for(m = -mask; m <= mask; m++)
+        {
+          if (n != 0 && m != 0)
+          {
+            if (pf_map.at<cv::Vec3b>(i+n,j+m)[0] <= pf_map.at<cv::Vec3b>(i,j)[0])
+            {
+              is_min = false;
+            }
+          }
+        }
+      }
+      if (is_min)
+      {
+        local_min_map.at<cv::Vec3b>(i,j)[0] = (uchar)(MAX_PIXEL);
+        local_min_map.at<cv::Vec3b>(i,j)[1] = local_min_map.at<cv::Vec3b>(i,j)[0];
+        local_min_map.at<cv::Vec3b>(i,j)[2] = local_min_map.at<cv::Vec3b>(i,j)[0];
+      }
+    }
+  }
+  
   return;
 }

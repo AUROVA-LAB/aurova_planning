@@ -38,6 +38,7 @@
 #include <tf/transform_listener.h>
 #include <tf/tf.h>
 
+#define INVALID_PIXEL 0.123
 #define EMPTY_PIXEL 0.0
 #define MAX_PIXEL 255.0
 
@@ -52,6 +53,8 @@ struct PFConfig
   float wa;
   float ar;
   float aa;
+  int min_pt_x;
+  int min_pt_y;
 };
 
 //include local_planning_alg main library
@@ -156,8 +159,10 @@ class LocalPlanningAlgorithm
     
     void potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> free_space, 
                             cv::Point2f goal_lidar,
-                            PFConfig pf_config,
+                            PFConfig& pf_config,
                             cv::Mat& pf_map);
+                            
+    void findLocalMin(cv::Mat pf_map, cv::Mat& local_min_map);
 };
 
 #endif

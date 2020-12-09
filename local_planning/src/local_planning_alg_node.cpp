@@ -151,26 +151,46 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   this->pf_config_.offset_y = - min_y_int;
   
   cv::Mat pf_map(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
+  cv::Mat pf_map_plt(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
   this->alg_.potentialForcesMap(free_space_pcl, this->goal_lidar_, this->pf_config_, pf_map);
   
   //plot
-  cv::Point2d uv;
+  cv::Point2d uv, uv2;
   uv.x = this->pf_config_.offset_x;
   uv.y = this->pf_config_.offset_y;
-  cv::circle(pf_map, uv, 2, CV_RGB(EMPTY_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), -1);
+  uv2.x = this->pf_config_.min_pt_x;
+  uv2.y = this->pf_config_.min_pt_y;
+  cv::applyColorMap(pf_map, pf_map_plt, cv::COLORMAP_JET);
+  cv::circle(pf_map_plt, uv, 2, CV_RGB(EMPTY_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), -1);
+  cv::circle(pf_map_plt, uv2, 2, CV_RGB(EMPTY_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), -1);
+  //////////////////////////////////////////////////
+  
+  
+  //////////////////////////////////////////////////
+  //// watershed segmentation 
+  cv::Mat markers(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC1, EMPTY_PIXEL);
+  markers.at<cv::Vec3b>(this->pf_config_.min_pt_y,this->pf_config_.min_pt_x) = (uchar)(MAX_PIXEL);
+  
+  //cv::watershed(pf_map_gray, markers);
+  
+  //cv::Mat local_min_map(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
+  //this->alg_.findLocalMin(pf_map, local_min_map);
+  //////////////////////////////////////////////////
+  
+  
   std_msgs::Header header; // empty header
   header.stamp = ros::Time::now(); // time
   cv_bridge::CvImage output_bridge;
-  output_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::RGB8, pf_map);
+  output_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, markers);
   this->plot_publisher_.publish(output_bridge.toImageMsg());
-  //////////////////////////////////////////////////
+  
   
   if (this->save_map_)
   {
     static int cont = 0;
     std::ostringstream out_path_map;
     out_path_map << this->out_path_map_ << cont << ".jpg";
-    cv::imwrite(out_path_map.str(), pf_map);
+    cv::imwrite(out_path_map.str(), pf_map_plt);
     cont++;
   }
   
