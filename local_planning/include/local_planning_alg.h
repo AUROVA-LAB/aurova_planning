@@ -44,6 +44,7 @@
 
 struct PFConfig
 {
+  int threshold_grad;
   int scale;
   int offset_x;
   int offset_y; 
@@ -160,9 +161,14 @@ class LocalPlanningAlgorithm
     void potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> free_space, 
                             cv::Point2f goal_lidar,
                             PFConfig& pf_config,
+                            vector<vector<cv::Point> >& contour,
                             cv::Mat& pf_map);
                             
-    void findLocalMin(cv::Mat pf_map, cv::Mat& local_min_map);
+    void findTransitableAreas(cv::Mat pf_map, 
+                              vector<vector<cv::Point> > contour,
+                              cv::Point2f goal_lidar, 
+                              PFConfig pf_config, 
+                              cv::Mat& roads_map);
 };
 
 #endif

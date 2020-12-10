@@ -25,6 +25,7 @@ void LocalPlanningAlgorithm::config_update(Config& config, uint32_t level)
 void LocalPlanningAlgorithm::potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> free_space, 
                                                 cv::Point2f goal_lidar,
                                                 PFConfig& pf_config,
+                                                vector<vector<cv::Point> >& contour,
                                                 cv::Mat& pf_map)
 {
   float in_out_flag;
@@ -49,7 +50,6 @@ void LocalPlanningAlgorithm::potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> f
   cv::line(polygon, cv::Point(u1, v1),  cv::Point(u2, v2), cv::Scalar(MAX_PIXEL), 1);
   
   // build contour
-  vector<vector<cv::Point> > contour;
   cv::findContours(polygon, contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 
   // build potential map
@@ -80,12 +80,14 @@ void LocalPlanningAlgorithm::potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> f
         if (min_distance == 0.0) min_distance = 1.0;
         force = pf_config.wr / pow(min_distance, pf_config.ar);
         
+        /*
         u1 = (int)(goal_lidar.x * pf_config.scale) + pf_config.offset_x;
         v1 = (int)(goal_lidar.y * pf_config.scale) + pf_config.offset_y;
         distance = sqrt(pow((float)(u1 - j), 2.0) + pow((float)(v1 - i), 2.0));
         
         if (distance == 0.0) distance = 1.0;
         force = force - pf_config.wa / pow(distance, pf_config.aa);
+        */
         
         forces_map.at<float>(i,j) = force;
       }
@@ -102,8 +104,8 @@ void LocalPlanningAlgorithm::potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> f
   cv::Point min_dist_pt;
   cv::minMaxLoc(forces_map, &min_val, &max_val, &min_dist_pt, &max_dist_pt);
   ROS_INFO("max_val: %f, min_val: %f", max_val, min_val);
-  pf_config.min_pt_x = min_dist_pt.x;
-  pf_config.min_pt_y = min_dist_pt.y;
+  pf_config.min_pt_x = (int)(goal_lidar.x * pf_config.scale) + pf_config.offset_x; //min_dist_pt.x;
+  pf_config.min_pt_y = (int)(goal_lidar.y * pf_config.scale) + pf_config.offset_y; //min_dist_pt.y;
   max_val = max_val - min_val;
   for(i = 0; i < polygon.rows; i++)
   {
@@ -130,8 +132,82 @@ void LocalPlanningAlgorithm::potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> f
   return;
 }
 
-void LocalPlanningAlgorithm::findLocalMin(cv::Mat pf_map, cv::Mat& local_min_map)
+void LocalPlanningAlgorithm::findTransitableAreas(cv::Mat pf_map, 
+                                                  vector<vector<cv::Point> > contour, 
+                                                  cv::Point2f goal_lidar,
+                                                  PFConfig pf_config, 
+                                                  cv::Mat& roads_map)
 {
+
+  // sobel calculation
+  cv::Mat pf_map_gray;
+  cv::Mat grad;
+  cv::Mat grad_x, grad_y;
+  cv::Mat abs_grad_x, abs_grad_y;
+  int scale = 1;
+  int delta = 0;
+  int ddepth = CV_16S;
+  cv::cvtColor(pf_map, pf_map_gray, CV_BGR2GRAY);
+  cv::Sobel(pf_map_gray, grad_x, ddepth, 1, 0, 3, scale, delta, cv::BORDER_DEFAULT);
+  cv::Sobel(pf_map_gray, grad_y, ddepth, 0, 1, 3, scale, delta, cv::BORDER_DEFAULT);
+  convertScaleAbs(grad_x, abs_grad_x);
+  convertScaleAbs(grad_y, abs_grad_y);
+  addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad);
+  grad.copyTo(roads_map);
+  cv::cvtColor(roads_map, roads_map, cv::COLOR_GRAY2BGR);
+  
+  //cv::threshold(roads_map, roads_map, 10, 255, cv::THRESH_BINARY_INV);
+  
+  int i, j, u, v;
+  float in_out_flag = 0.0, distance, force;
+  bool measure_dist = true;
+  cv::Mat forces_map(roads_map.size(), CV_32F);
+  for(i = 0; i < roads_map.rows; i++)
+  {
+    for(j = 0; j < roads_map.cols; j++)
+    {
+       in_out_flag = (float)cv::pointPolygonTest(contour[0], cv::Point2f((float)j, (float)i), measure_dist);
+       if (in_out_flag > 0.0 && roads_map.at<cv::Vec3b>(i,j)[0] < pf_config.threshold_grad)
+       {
+       
+         u = (int)(goal_lidar.x * pf_config.scale) + pf_config.offset_x;
+         v = (int)(goal_lidar.y * pf_config.scale) + pf_config.offset_y;
+         distance = sqrt(pow((float)(u - j), 2.0) + pow((float)(v - i), 2.0));
+        
+         if (distance == 0.0) distance = 1.0;
+         forces_map.at<float>(i,j) = pf_config.wa / pow(distance, pf_config.aa);
+       }
+       else
+       {
+         forces_map.at<float>(i,j) = 0.0;
+       }
+    }
+  }
+  
+  // normalize map
+  for(i = 0; i < roads_map.rows; i++)
+  {
+    for(j = 0; j < roads_map.cols; j++)
+    {
+      roads_map.at<cv::Vec3b>(i,j)[0] = (uchar)(forces_map.at<float>(i,j) * MAX_PIXEL);
+      roads_map.at<cv::Vec3b>(i,j)[1] = roads_map.at<cv::Vec3b>(i,j)[0];
+      roads_map.at<cv::Vec3b>(i,j)[2] = roads_map.at<cv::Vec3b>(i,j)[0];
+    }
+  }
+
+
+  //////////////////////////////////////////////////
+  //// watershed segmentation 
+  /*
+  cv::Mat markers(this->pf_config_.size_y, this->pf_config_.size_x, CV_32SC1, EMPTY_PIXEL);
+  markers.at<int>(this->pf_config_.min_pt_y,this->pf_config_.min_pt_x) = 1;
+  markers.at<int>(this->pf_config_.offset_y,this->pf_config_.offset_x) = 2;
+  cv::cvtColor(pf_map, pf_map, cv::COLOR_RGBA2RGB, 0);
+  cv::watershed(pf_map, markers);
+  */
+  //////////////////////////////////////////////////
+  
+  /*
   int i, j, n, m;
   bool is_min;
   int mask = 2;
@@ -162,6 +238,6 @@ void LocalPlanningAlgorithm::findLocalMin(cv::Mat pf_map, cv::Mat& local_min_map
       }
     }
   }
-  
+  */
   return;
 }

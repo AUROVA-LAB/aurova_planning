@@ -11,6 +11,7 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   
   this->local_planning_ = new LocalPlanning();
   
+  this->public_node_handle_.getParam("/pf_configuration/threshold_grad", this->pf_config_.threshold_grad);
   this->public_node_handle_.getParam("/pf_configuration/scale", this->pf_config_.scale);
   this->public_node_handle_.getParam("/pf_configuration/wr", this->pf_config_.wr);
   this->public_node_handle_.getParam("/pf_configuration/ar", this->pf_config_.ar);
@@ -117,6 +118,7 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   //////////////////////////////////////////////////
   
   
+  
   //////////////////////////////////////////////////
   //// potential forces map calculation
   // size map calculation
@@ -150,9 +152,10 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   this->pf_config_.offset_x = - min_x_int;
   this->pf_config_.offset_y = - min_y_int;
   
+  vector<vector<cv::Point> > contour;
   cv::Mat pf_map(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
   cv::Mat pf_map_plt(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
-  this->alg_.potentialForcesMap(free_space_pcl, this->goal_lidar_, this->pf_config_, pf_map);
+  this->alg_.potentialForcesMap(free_space_pcl, this->goal_lidar_, this->pf_config_, contour, pf_map);
   
   //plot
   cv::Point2d uv, uv2;
@@ -166,25 +169,24 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   //////////////////////////////////////////////////
   
   
+  
   //////////////////////////////////////////////////
-  //// watershed segmentation 
-  cv::Mat markers(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC1, EMPTY_PIXEL);
-  markers.at<cv::Vec3b>(this->pf_config_.min_pt_y,this->pf_config_.min_pt_x) = (uchar)(MAX_PIXEL);
-  
-  //cv::watershed(pf_map_gray, markers);
-  
-  //cv::Mat local_min_map(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
-  //this->alg_.findLocalMin(pf_map, local_min_map);
+  //// ROAD MAP CALCULATION
+  cv::Mat roads_map(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
+  cv::Mat roads_map_plot(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
+  this->alg_.findTransitableAreas(pf_map, contour, this->goal_lidar_, this->pf_config_, roads_map);
+  cv::applyColorMap(roads_map, roads_map_plot, cv::COLORMAP_JET);
   //////////////////////////////////////////////////
   
   
+  
+  ///////////////////////////////////////////////////
+  //// PLOT AND FILE OUTPUT
   std_msgs::Header header; // empty header
   header.stamp = ros::Time::now(); // time
   cv_bridge::CvImage output_bridge;
-  output_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, markers);
+  output_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, pf_map);
   this->plot_publisher_.publish(output_bridge.toImageMsg());
-  
-  
   if (this->save_map_)
   {
     static int cont = 0;
@@ -192,7 +194,13 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     out_path_map << this->out_path_map_ << cont << ".jpg";
     cv::imwrite(out_path_map.str(), pf_map_plt);
     cont++;
+    
+    std::ostringstream out_path_map2;
+    out_path_map2 << this->out_path_map_ << cont << ".jpg";
+    cv::imwrite(out_path_map2.str(), roads_map_plot);
+    cont++;
   }
+  ///////////////////////////////////////////////////
   
   // loop time
   end = ros::Time::now().toSec();
