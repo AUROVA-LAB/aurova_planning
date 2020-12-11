@@ -175,7 +175,13 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   cv::Mat roads_map(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
   cv::Mat roads_map_plot(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
   this->alg_.findTransitableAreas(pf_map, contour, this->goal_lidar_, this->pf_config_, roads_map);
+  
+  //plot
   cv::applyColorMap(roads_map, roads_map_plot, cv::COLORMAP_JET);
+  uv2.x = (int)(this->goal_lidar_.x * this->pf_config_.scale) + this->pf_config_.offset_x;
+  uv2.y = (int)(this->goal_lidar_.y * this->pf_config_.scale) + this->pf_config_.offset_y;
+  cv::circle(roads_map_plot, uv, 2, CV_RGB(EMPTY_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), -1);
+  cv::circle(roads_map_plot, uv2, 2, CV_RGB(EMPTY_PIXEL, MAX_PIXEL, EMPTY_PIXEL), -1);
   //////////////////////////////////////////////////
   
   
@@ -185,7 +191,7 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   std_msgs::Header header; // empty header
   header.stamp = ros::Time::now(); // time
   cv_bridge::CvImage output_bridge;
-  output_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, pf_map);
+  output_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, roads_map_plot);
   this->plot_publisher_.publish(output_bridge.toImageMsg());
   if (this->save_map_)
   {

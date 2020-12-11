@@ -161,6 +161,7 @@ void LocalPlanningAlgorithm::findTransitableAreas(cv::Mat pf_map,
   int i, j, u, v;
   float in_out_flag = 0.0, distance, force;
   bool measure_dist = true;
+  float threshold = (float)pf_config.threshold_grad;
   cv::Mat forces_map(roads_map.size(), CV_32F);
   for(i = 0; i < roads_map.rows; i++)
   {
@@ -175,7 +176,9 @@ void LocalPlanningAlgorithm::findTransitableAreas(cv::Mat pf_map,
          distance = sqrt(pow((float)(u - j), 2.0) + pow((float)(v - i), 2.0));
         
          if (distance == 0.0) distance = 1.0;
-         forces_map.at<float>(i,j) = pf_config.wa / pow(distance, pf_config.aa);
+         force = pf_config.wa / pow(distance, pf_config.aa);
+         force = force + abs((float)(roads_map.at<cv::Vec3b>(i,j)[0]) - threshold) / threshold;
+         forces_map.at<float>(i,j) = force;
        }
        else
        {
@@ -185,11 +188,15 @@ void LocalPlanningAlgorithm::findTransitableAreas(cv::Mat pf_map,
   }
   
   // normalize map
+  double min_val, max_val;
+  cv::Point max_dist_pt;
+  cv::Point min_dist_pt;
+  cv::minMaxLoc(forces_map, &min_val, &max_val, &min_dist_pt, &max_dist_pt);
   for(i = 0; i < roads_map.rows; i++)
   {
     for(j = 0; j < roads_map.cols; j++)
     {
-      roads_map.at<cv::Vec3b>(i,j)[0] = (uchar)(forces_map.at<float>(i,j) * MAX_PIXEL);
+      roads_map.at<cv::Vec3b>(i,j)[0] = (uchar)((forces_map.at<float>(i,j) / max_val)  * MAX_PIXEL);
       roads_map.at<cv::Vec3b>(i,j)[1] = roads_map.at<cv::Vec3b>(i,j)[0];
       roads_map.at<cv::Vec3b>(i,j)[2] = roads_map.at<cv::Vec3b>(i,j)[0];
     }
