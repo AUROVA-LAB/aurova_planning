@@ -201,50 +201,44 @@ void LocalPlanningAlgorithm::findTransitableAreas(cv::Mat pf_map,
       roads_map.at<cv::Vec3b>(i,j)[2] = roads_map.at<cv::Vec3b>(i,j)[0];
     }
   }
+  return;
+}
 
-
-  //////////////////////////////////////////////////
-  //// watershed segmentation 
-  /*
-  cv::Mat markers(this->pf_config_.size_y, this->pf_config_.size_x, CV_32SC1, EMPTY_PIXEL);
-  markers.at<int>(this->pf_config_.min_pt_y,this->pf_config_.min_pt_x) = 1;
-  markers.at<int>(this->pf_config_.offset_y,this->pf_config_.offset_x) = 2;
-  cv::cvtColor(pf_map, pf_map, cv::COLOR_RGBA2RGB, 0);
-  cv::watershed(pf_map, markers);
-  */
-  //////////////////////////////////////////////////
+void LocalPlanningAlgorithm::findLocalGoal(cv::Mat roads_map, PFConfig pf_config, cv::Point2f& goal_local)
+{
   
-  /*
-  int i, j, n, m;
-  bool is_min;
-  int mask = 2;
+  int i, j, rad_min, rad_max; 
+  int ini_i, ini_j, end_i, end_j;
+  int max_val;
   
-  for(i = mask; i < local_min_map.rows-mask; i++)
+  rad_min = (int)(pf_config.rad_min * pf_config.scale);
+  rad_max = (int)(pf_config.rad_max * pf_config.scale);
+  
+  ini_i = pf_config.offset_y - rad_max;
+  ini_j = pf_config.offset_x - rad_max;
+  
+  end_i = pf_config.offset_y + rad_max;
+  end_j = pf_config.offset_x + rad_max;
+  
+  if (ini_i < 0) ini_i = 0;
+  if (ini_j < 0) ini_j = 0;
+  
+  if (end_i > roads_map.rows) end_i = roads_map.rows;
+  if (end_j > roads_map.cols) end_j = roads_map.cols;
+  
+  max_val = 0;
+  for(i = ini_i; i < end_i; i++)
   {
-    for(j = mask; j < local_min_map.cols-mask; j++)
+    for(j = ini_j; j < end_j; j++)
     {
-      is_min = true;
-      for(n = -mask; n <= mask; n++)
+      if (roads_map.at<cv::Vec3b>(i,j)[0] > max_val)
       {
-        for(m = -mask; m <= mask; m++)
-        {
-          if (n != 0 && m != 0)
-          {
-            if (pf_map.at<cv::Vec3b>(i+n,j+m)[0] <= pf_map.at<cv::Vec3b>(i,j)[0])
-            {
-              is_min = false;
-            }
-          }
-        }
-      }
-      if (is_min)
-      {
-        local_min_map.at<cv::Vec3b>(i,j)[0] = (uchar)(MAX_PIXEL);
-        local_min_map.at<cv::Vec3b>(i,j)[1] = local_min_map.at<cv::Vec3b>(i,j)[0];
-        local_min_map.at<cv::Vec3b>(i,j)[2] = local_min_map.at<cv::Vec3b>(i,j)[0];
+        max_val = roads_map.at<cv::Vec3b>(i,j)[0];
+        goal_local.x = j;
+        goal_local.y = i;
       }
     }
   }
-  */
+  
   return;
 }

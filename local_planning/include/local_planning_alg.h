@@ -56,6 +56,8 @@ struct PFConfig
   float aa;
   int min_pt_x;
   int min_pt_y;
+  float rad_min;
+  float rad_max;
 };
 
 //include local_planning_alg main library
@@ -169,6 +171,8 @@ class LocalPlanningAlgorithm
                               cv::Point2f goal_lidar, 
                               PFConfig pf_config, 
                               cv::Mat& roads_map);
+                              
+   void findLocalGoal(cv::Mat roads_map, PFConfig pf_config, cv::Point2f& goal_local);
 };
 
 #endif

@@ -17,6 +17,8 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->public_node_handle_.getParam("/pf_configuration/ar", this->pf_config_.ar);
   this->public_node_handle_.getParam("/pf_configuration/wa", this->pf_config_.wa);
   this->public_node_handle_.getParam("/pf_configuration/aa", this->pf_config_.aa);
+  this->public_node_handle_.getParam("/pf_configuration/rad_min", this->pf_config_.rad_min);
+  this->public_node_handle_.getParam("/pf_configuration/rad_max", this->pf_config_.rad_max);
   
   this->public_node_handle_.getParam("/local_planning/frame_id", this->frame_id_);
   this->public_node_handle_.getParam("/local_planning/frame_lidar", this->frame_lidar_);
@@ -182,6 +184,19 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   uv2.y = (int)(this->goal_lidar_.y * this->pf_config_.scale) + this->pf_config_.offset_y;
   cv::circle(roads_map_plot, uv, 2, CV_RGB(EMPTY_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), -1);
   cv::circle(roads_map_plot, uv2, 2, CV_RGB(EMPTY_PIXEL, MAX_PIXEL, EMPTY_PIXEL), -1);
+  //////////////////////////////////////////////////
+  
+  
+  
+  //////////////////////////////////////////////////
+  //// LOCAL GOAL CALCULATION
+  cv::Point2f goal_local;
+  this->alg_.findLocalGoal(roads_map, this->pf_config_, goal_local);
+  
+  //plot
+  uv2.x = (int)(goal_local.x);
+  uv2.y = (int)(goal_local.y);
+  cv::circle(roads_map_plot, uv2, 2, CV_RGB(MAX_PIXEL, MAX_PIXEL, MAX_PIXEL), -1);
   //////////////////////////////////////////////////
   
   
