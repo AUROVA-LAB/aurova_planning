@@ -22,6 +22,7 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
   this->public_node_handle_.getParam("/global_planning/var_w", var_w);
   this->public_node_handle_.getParam("/global_planning/type_dist", type_dist);
   this->public_node_handle_.getParam("/global_planning/rad_reached", this->rad_reached_);
+  this->public_node_handle_.getParam("/global_planning/flag_bypass", this->flag_bypass_);
 
   //////////////////////////////////////////////////
   // set covariance matrix
@@ -96,70 +97,87 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
   
   if (this->flag_pose_ && this->flag_goal_)
   {
-    
-    float diff_x = this->st_path_[index_path_].coordinates[0] - this->pose_.coordinates[0];
-    float diff_y = this->st_path_[index_path_].coordinates[1] - this->pose_.coordinates[1];
-    float distance = sqrt(pow(diff_x, 2) + pow(diff_y, 2));
-    
-    if ((distance < this->rad_reached_) && (index_path_+1 < this->st_path_.size()))
+  
+    if (this->flag_bypass_)
     {
-      index_path_ = index_path_ + 1;
+      this->local_goal_.header.frame_id = this->frame_id_;
+      this->local_goal_.pose.pose.position.x = this->global_goal_bypass_.pose.position.x;
+      this->local_goal_.pose.pose.position.y = this->global_goal_bypass_.pose.position.y;
+      this->local_goal_.pose.pose.position.z = this->global_goal_bypass_.pose.position.z;
+      this->local_goal_.pose.pose.orientation.x = this->global_goal_bypass_.pose.orientation.x;
+      this->local_goal_.pose.pose.orientation.y = this->global_goal_bypass_.pose.orientation.y;
+      this->local_goal_.pose.pose.orientation.z = this->global_goal_bypass_.pose.orientation.z;
+      this->local_goal_.pose.pose.orientation.w = this->global_goal_bypass_.pose.orientation.w;
+      this->local_goal_.pose.covariance[0] = this->global_goal_.matrix[0][0];
+      this->local_goal_.pose.covariance[7] = this->global_goal_.matrix[1][1];
+      this->local_goal_.pose.covariance[14] = this->global_goal_.matrix[2][2];
+      this->local_goal_.pose.covariance[35] = this->global_goal_.matrix[3][3];
     }
-    
-    
-    ///////////////////////////////////////////////////////////
-    ///// TRANSFORM TO TF FARME
-    geometry_msgs::PointStamped node_tf;
-    geometry_msgs::PointStamped node_utm;
-    node_utm.header.frame_id = "utm";
-    node_utm.header.stamp = ros::Time(0); //ros::Time::now();
-    node_utm.point.x = this->st_path_[index_path_].coordinates[0];
-    node_utm.point.y = this->st_path_[index_path_].coordinates[1];
-    node_utm.point.z = 0.0;
-    try
+    else
     {
-      this->listener_.transformPoint(this->frame_id_, node_utm, node_tf);
+      float diff_x = this->st_path_[index_path_].coordinates[0] - this->pose_.coordinates[0];
+      float diff_y = this->st_path_[index_path_].coordinates[1] - this->pose_.coordinates[1];
+      float distance = sqrt(pow(diff_x, 2) + pow(diff_y, 2));
+    
+      if ((distance < this->rad_reached_) && (index_path_+1 < this->st_path_.size()))
+      {
+        index_path_ = index_path_ + 1;
+      }
+    
+    
+      ///////////////////////////////////////////////////////////
+      ///// TRANSFORM TO TF FARME
+      geometry_msgs::PointStamped node_tf;
+      geometry_msgs::PointStamped node_utm;
+      node_utm.header.frame_id = "utm";
+      node_utm.header.stamp = ros::Time(0); //ros::Time::now();
+      node_utm.point.x = this->st_path_[index_path_].coordinates[0];
+      node_utm.point.y = this->st_path_[index_path_].coordinates[1];
+      node_utm.point.z = 0.0;
+      try
+      {
+        this->listener_.transformPoint(this->frame_id_, node_utm, node_tf);
+      }
+      catch (tf::TransformException& ex)
+      {
+        ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+        return;
+      }
+      double yaw = this->getYawFromPath(index_path_);
+      tf::Quaternion quat_utm = tf::createQuaternionFromRPY(0, 0, yaw);
+      geometry_msgs::QuaternionStamped orient_tf;
+      geometry_msgs::QuaternionStamped orient_utm;
+      orient_utm.header.frame_id = "utm";
+      orient_utm.header.stamp = ros::Time(0);
+      orient_utm.quaternion.x =  quat_utm[0];
+      orient_utm.quaternion.y =  quat_utm[1];
+      orient_utm.quaternion.z =  quat_utm[2];
+      orient_utm.quaternion.w =  quat_utm[3];
+      try
+      {
+        this->listener_.transformQuaternion(this->frame_id_, orient_utm, orient_tf);
 
-    }
-    catch (tf::TransformException& ex)
-    {
-      ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
-      return;
-    }
-    double yaw = this->getYawFromPath(index_path_);
-    tf::Quaternion quat_utm = tf::createQuaternionFromRPY(0, 0, yaw);
-    geometry_msgs::QuaternionStamped orient_tf;
-    geometry_msgs::QuaternionStamped orient_utm;
-    orient_utm.header.frame_id = "utm";
-    orient_utm.header.stamp = ros::Time(0);
-    orient_utm.quaternion.x =  quat_utm[0];
-    orient_utm.quaternion.y =  quat_utm[1];
-    orient_utm.quaternion.z =  quat_utm[2];
-    orient_utm.quaternion.w =  quat_utm[3];
-    try
-    {
-      this->listener_.transformQuaternion(this->frame_id_, orient_utm, orient_tf);
+      }
+      catch (tf::TransformException& ex)
+      {
+        ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+        return;
+      }
+      ///////////////////////////////////////////////////////////
 
+      this->local_goal_.header.frame_id = this->frame_id_;
+      this->local_goal_.pose.pose.position.x = node_tf.point.x;
+      this->local_goal_.pose.pose.position.y = node_tf.point.y;
+      this->local_goal_.pose.pose.position.z = 0.0;
+      this->local_goal_.pose.pose.orientation.x = orient_tf.quaternion.x;
+      this->local_goal_.pose.pose.orientation.y = orient_tf.quaternion.y;
+      this->local_goal_.pose.pose.orientation.z = orient_tf.quaternion.z;
+      this->local_goal_.pose.pose.orientation.w = orient_tf.quaternion.w;
+      this->local_goal_.pose.covariance[0] = this->global_goal_.matrix[0][0];
+      this->local_goal_.pose.covariance[7] = this->global_goal_.matrix[1][1];
+      this->local_goal_.pose.covariance[14] = this->global_goal_.matrix[2][2];
+      this->local_goal_.pose.covariance[35] = this->global_goal_.matrix[3][3];
     }
-    catch (tf::TransformException& ex)
-    {
-      ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
-      return;
-    }
-    ///////////////////////////////////////////////////////////
-
-    this->local_goal_.header.frame_id = this->frame_id_;
-    this->local_goal_.pose.pose.position.x = node_tf.point.x;
-    this->local_goal_.pose.pose.position.y = node_tf.point.y;
-    this->local_goal_.pose.pose.position.z = 0.0;
-    this->local_goal_.pose.pose.orientation.x = orient_tf.quaternion.x;
-    this->local_goal_.pose.pose.orientation.y = orient_tf.quaternion.y;
-    this->local_goal_.pose.pose.orientation.z = orient_tf.quaternion.z;
-    this->local_goal_.pose.pose.orientation.w = orient_tf.quaternion.w;
-    this->local_goal_.pose.covariance[0] = this->global_goal_.matrix[0][0];
-    this->local_goal_.pose.covariance[7] = this->global_goal_.matrix[1][1];
-    this->local_goal_.pose.covariance[14] = this->global_goal_.matrix[2][2];
-    this->local_goal_.pose.covariance[35] = this->global_goal_.matrix[3][3];
     
     this->local_goal_pub_.publish(this->local_goal_);
     
@@ -362,7 +380,15 @@ void GlobalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseStamped::Cons
   this->global_goal_.coordinates.at(2) = node_utm.point.z;
   this->global_goal_.coordinates.at(3) = yaw;
   
-  if (this->flag_pose_)
+  this->global_goal_bypass_.pose.position.x = goal_msg->pose.position.x;
+  this->global_goal_bypass_.pose.position.y = goal_msg->pose.position.y;
+  this->global_goal_bypass_.pose.position.z = goal_msg->pose.position.z;
+  this->global_goal_bypass_.pose.orientation.x = goal_msg->pose.orientation.x;
+  this->global_goal_bypass_.pose.orientation.y = goal_msg->pose.orientation.y;
+  this->global_goal_bypass_.pose.orientation.z = goal_msg->pose.orientation.z;
+  this->global_goal_bypass_.pose.orientation.w = goal_msg->pose.orientation.w;
+  
+  if (this->flag_pose_ && !this->flag_bypass_)
   {
     visualization_msgs::MarkerArray marker_array;
     ROS_INFO("******** pre-execution ********");
@@ -371,8 +397,9 @@ void GlobalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseStamped::Cons
     this->parsePathToRosMarker(marker_array);
     this->marker_pub_.publish(marker_array);
     this->index_path_ = 0;
-    this->flag_goal_ = true;
   }
+  
+  this->flag_goal_ = true;
   
   this->alg_.unlock();
 }

@@ -46,6 +46,7 @@ private:
 
   bool flag_pose_;
   bool flag_goal_;
+  bool flag_bypass_;
   int vectors_size_;
   double rad_reached_;
   int index_path_;
@@ -59,6 +60,7 @@ private:
   std::string frame_id_;
   geometry_msgs::PoseWithCovarianceStamped local_goal_;
   geometry_msgs::TransformStamped tf_to_utm_;
+  geometry_msgs::PoseStamped global_goal_bypass_;
   tf::TransformBroadcaster broadcaster_;
   tf::TransformListener listener_;
   Graph *graph_;
