@@ -90,8 +90,9 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
 {
   this->alg_.lock();
   
-  double ini, end;
+  double ini, end, ini1, end1, ini2, end2;;
   ini = ros::Time::now().toSec();
+  ini1 = ros::Time::now().toSec();
   
   //////////////////////////////////////////////////
   //// free-space perimeter calculation
@@ -119,6 +120,8 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   this->obstacles_publisher_.publish(free_space_pcl);
   //////////////////////////////////////////////////
   
+  
+  end1 = ros::Time::now().toSec();
   
   
   //////////////////////////////////////////////////
@@ -154,20 +157,11 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   this->pf_config_.offset_x = - min_x_int;
   this->pf_config_.offset_y = - min_y_int;
   
-  vector<vector<cv::Point> > contour;
+  vector<vector<cv::Point> > contour_plt;
   cv::Mat pf_map(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
   cv::Mat pf_map_plt(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
-  this->alg_.potentialForcesMap(free_space_pcl, this->goal_lidar_, this->pf_config_, contour, pf_map);
-  
-  //plot
-  cv::Point2d uv, uv2;
-  uv.x = this->pf_config_.offset_x;
-  uv.y = this->pf_config_.offset_y;
-  uv2.x = this->pf_config_.min_pt_x;
-  uv2.y = this->pf_config_.min_pt_y;
+  this->alg_.potentialForcesMap(free_space_pcl, this->goal_lidar_, this->pf_config_, contour_plt, pf_map);
   cv::applyColorMap(pf_map, pf_map_plt, cv::COLORMAP_JET);
-  cv::circle(pf_map_plt, uv, 2, CV_RGB(EMPTY_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), -1);
-  cv::circle(pf_map_plt, uv2, 2, CV_RGB(EMPTY_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), -1);
   //////////////////////////////////////////////////
   
   
@@ -176,27 +170,26 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   //// ROAD MAP CALCULATION
   cv::Mat roads_map(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
   cv::Mat roads_map_plot(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
-  this->alg_.findTransitableAreas(pf_map, contour, this->goal_lidar_, this->pf_config_, roads_map);
-  
-  //plot
+  this->alg_.findTransitableAreas(pf_map, contour_plt, this->goal_lidar_, this->pf_config_, roads_map);
   cv::applyColorMap(roads_map, roads_map_plot, cv::COLORMAP_JET);
-  uv2.x = (int)(this->goal_lidar_.x * this->pf_config_.scale) + this->pf_config_.offset_x;
-  uv2.y = (int)(this->goal_lidar_.y * this->pf_config_.scale) + this->pf_config_.offset_y;
-  cv::circle(roads_map_plot, uv, 2, CV_RGB(EMPTY_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), -1);
-  cv::circle(roads_map_plot, uv2, 2, CV_RGB(EMPTY_PIXEL, MAX_PIXEL, EMPTY_PIXEL), -1);
+  //////////////////////////////////////////////////
+  
+  
+  ini2 = ros::Time::now().toSec();
+  
+  
+  //////////////////////////////////////////////////
+  //// NAIVE GEODESIC PATH CALCULATION
+  vector<vector<cv::Point> > contour;
+  this->alg_.findLocalGoalCandidates(free_space_pcl, this->goal_lidar_, this->pf_config_, contour);
   //////////////////////////////////////////////////
   
   
   
   //////////////////////////////////////////////////
   //// LOCAL GOAL CALCULATION
-  cv::Point2f goal_local;
-  this->alg_.findLocalGoal(roads_map, this->pf_config_, goal_local);
-  
-  //plot
-  uv2.x = (int)(goal_local.x);
-  uv2.y = (int)(goal_local.y);
-  cv::circle(roads_map_plot, uv2, 2, CV_RGB(MAX_PIXEL, MAX_PIXEL, MAX_PIXEL), -1);
+  //cv::Point2f goal_local;
+  //this->alg_.findLocalGoal(roads_map, this->pf_config_, goal_local);
   //////////////////////////////////////////////////
   
   
@@ -225,7 +218,19 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   
   // loop time
   end = ros::Time::now().toSec();
-  ROS_INFO("duration: %f", end - ini);
+  end2 = ros::Time::now().toSec();
+  ROS_INFO("duration naive: %f", (end1 - ini1) + (end2 - ini2));
+  ROS_INFO("duration total (to plot): %f", end - ini);
+  
+  /*
+  cv::Point2d uv, uv2;
+  uv.x = this->pf_config_.offset_x;
+  uv.y = this->pf_config_.offset_y;
+  uv2.x = this->pf_config_.min_pt_x;
+  uv2.y = this->pf_config_.min_pt_y;
+  cv::circle(pf_map_plt, uv, 2, CV_RGB(EMPTY_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), -1);
+  cv::circle(pf_map_plt, uv2, 2, CV_RGB(EMPTY_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), -1);
+  */
   
   this->alg_.unlock();
 }
@@ -235,7 +240,7 @@ void LocalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseWithCovariance
   this->alg_.lock();
   
   ///////////////////////////////////////////////////////////
-  ///// TRANSFORM TO BASE_LINK FARME
+  ///// TRANSFORM TO LIDAR FARME
   geometry_msgs::PointStamped goal_tf;
   geometry_msgs::PointStamped goal_lidar;
   goal_tf.header.frame_id = this->frame_id_;

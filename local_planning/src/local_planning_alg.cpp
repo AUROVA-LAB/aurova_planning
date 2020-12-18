@@ -103,7 +103,6 @@ void LocalPlanningAlgorithm::potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> f
   cv::Point max_dist_pt;
   cv::Point min_dist_pt;
   cv::minMaxLoc(forces_map, &min_val, &max_val, &min_dist_pt, &max_dist_pt);
-  ROS_INFO("max_val: %f, min_val: %f", max_val, min_val);
   pf_config.min_pt_x = (int)(goal_lidar.x * pf_config.scale) + pf_config.offset_x; //min_dist_pt.x;
   pf_config.min_pt_y = (int)(goal_lidar.y * pf_config.scale) + pf_config.offset_y; //min_dist_pt.y;
   max_val = max_val - min_val;
@@ -239,6 +238,86 @@ void LocalPlanningAlgorithm::findLocalGoal(cv::Mat roads_map, PFConfig pf_config
       }
     }
   }
+  
+  return;
+}
+
+void LocalPlanningAlgorithm::findLocalGoalCandidates(pcl::PointCloud<pcl::PointXYZ> free_space, 
+                                                     cv::Point2f goal_lidar,
+                                                     PFConfig& pf_config,
+                                                     vector<vector<cv::Point> >& contour)
+{
+  int ini = 0;
+  int end = 360;
+  int res = 1;
+  float x, y, in_out_flag, angle, range = pf_config.rad_max;
+  float force, min_distance, distance;
+  bool measure_dist = true;
+  int i, j, k, u1, v1, u2, v2;
+  cv::Mat polygon(pf_config.size_y, pf_config.size_x, CV_8UC1, EMPTY_PIXEL);
+  
+  //build polygon from vertex
+  for (i = 0; i < free_space.points.size()-1; ++i)
+  {
+    u1 = (int)(free_space.points[i].x * pf_config.scale) + pf_config.offset_x;
+    v1 = (int)(free_space.points[i].y * pf_config.scale) + pf_config.offset_y;
+    u2 = (int)(free_space.points[i+1].x * pf_config.scale) + pf_config.offset_x;
+    v2 = (int)(free_space.points[i+1].y * pf_config.scale) + pf_config.offset_y;
+    cv::line(polygon, cv::Point(u1, v1),  cv::Point(u2, v2), cv::Scalar(MAX_PIXEL), 1);
+  }
+  u1 = u2;
+  v1 = v2;
+  u2 = (int)(free_space.points[0].x * pf_config.scale) + pf_config.offset_x;
+  v2 = (int)(free_space.points[0].y * pf_config.scale) + pf_config.offset_y;
+  cv::line(polygon, cv::Point(u1, v1),  cv::Point(u2, v2), cv::Scalar(MAX_PIXEL), 1);
+  
+  // build contour
+  cv::findContours(polygon, contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+  
+  for (i = ini; i < end; i += res)
+  {
+    angle = (float)i;
+    x = range * cos(angle);
+    y = range * sin(angle);
+    u1 = (int)(x * pf_config.scale) + pf_config.offset_x;
+    v1 = (int)(y * pf_config.scale) + pf_config.offset_y;
+    
+    in_out_flag = (float)cv::pointPolygonTest(contour[0], cv::Point2f((float)u1, (float)v1), measure_dist);
+    
+    if (in_out_flag > 0)
+    {
+      min_distance = sqrt(pow((float)(pf_config.size_x), 2.0) + pow((float)(pf_config.size_y), 2.0));
+      for (k = 0; k < free_space.points.size(); ++k)
+      {
+        u1 = (int)(free_space.points[k].x * pf_config.scale) + pf_config.offset_x;
+        v1 = (int)(free_space.points[k].y * pf_config.scale) + pf_config.offset_y;
+          
+        distance = sqrt(pow((float)(u1 - j), 2.0) + pow((float)(v1 - i), 2.0));
+          
+        if (distance < min_distance)
+        {
+          min_distance = distance;
+        }
+      }
+      
+      if (min_distance == 0.0) min_distance = 1.0;
+      force = pf_config.wr / pow(min_distance, pf_config.ar);
+        
+      /*
+      u1 = (int)(goal_lidar.x * pf_config.scale) + pf_config.offset_x;
+      v1 = (int)(goal_lidar.y * pf_config.scale) + pf_config.offset_y;
+      distance = sqrt(pow((float)(u1 - j), 2.0) + pow((float)(v1 - i), 2.0));
+      
+      if (distance == 0.0) distance = 1.0;
+      force = force - pf_config.wa / pow(distance, pf_config.aa);
+      */
+    } 
+    else
+    {
+      force = -1.0;
+    }
+  }
+  
   
   return;
 }
