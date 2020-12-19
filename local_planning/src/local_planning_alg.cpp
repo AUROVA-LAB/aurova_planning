@@ -245,12 +245,14 @@ void LocalPlanningAlgorithm::findLocalGoal(cv::Mat roads_map, PFConfig pf_config
 void LocalPlanningAlgorithm::findLocalGoalCandidates(pcl::PointCloud<pcl::PointXYZ> free_space, 
                                                      cv::Point2f goal_lidar,
                                                      PFConfig& pf_config,
-                                                     vector<vector<cv::Point> >& contour)
+                                                     vector<vector<cv::Point> >& contour,
+                                                     int& radious,
+                                                     cv::Point2d& goal_candidate)
 {
   int ini = 0;
   int end = 360;
   int res = 1;
-  float x, y, in_out_flag, angle, range = pf_config.rad_max;
+  float x, y, in_out_flag, angle, range;
   float force, min_distance, distance;
   bool measure_dist = true;
   int i, j, k, u1, v1, u2, v2;
@@ -274,8 +276,48 @@ void LocalPlanningAlgorithm::findLocalGoalCandidates(pcl::PointCloud<pcl::PointX
   // build contour
   cv::findContours(polygon, contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
   
+  range = sqrt(pow(goal_lidar.x, 2) + pow(goal_lidar.y, 2)) / 2.0;
+  radious = (int)(range * pf_config.scale);
+  float min_circle_goal = 1000;
   for (i = ini; i < end; i += res)
   {
+    //circle around goal
+    angle = (float)i;
+    x = range * cos(angle) + goal_lidar.x;
+    y = range * sin(angle) + goal_lidar.y;
+    u1 = (int)(x * pf_config.scale) + pf_config.offset_x;
+    v1 = (int)(y * pf_config.scale) + pf_config.offset_y;
+    
+    in_out_flag = (float)cv::pointPolygonTest(contour[0], cv::Point2f((float)u1, (float)v1), measure_dist);
+    
+    if (in_out_flag > 0)
+    {
+      min_distance = sqrt(pow((float)(pf_config.size_x), 2.0) + pow((float)(pf_config.size_y), 2.0));
+      for (k = 0; k < free_space.points.size(); ++k)
+      {
+        u2 = (int)(free_space.points[k].x * pf_config.scale) + pf_config.offset_x;
+        v2 = (int)(free_space.points[k].y * pf_config.scale) + pf_config.offset_y;
+          
+        distance = sqrt(pow((float)(u2 - u1), 2.0) + pow((float)(v2 - v1), 2.0));
+          
+        if (distance < min_distance)
+        {
+          min_distance = distance;
+        }
+      }
+      
+      if (min_distance == 0.0) min_distance = 1.0;
+      force = pf_config.wr / pow(min_distance, pf_config.ar);
+      
+      if (force < min_circle_goal)
+      {
+        min_circle_goal = force;
+        goal_candidate.x = (float)u1;
+        goal_candidate.y = (float)v1;
+      }
+    } 
+    
+    //circle around lidar
     angle = (float)i;
     x = range * cos(angle);
     y = range * sin(angle);
@@ -289,10 +331,10 @@ void LocalPlanningAlgorithm::findLocalGoalCandidates(pcl::PointCloud<pcl::PointX
       min_distance = sqrt(pow((float)(pf_config.size_x), 2.0) + pow((float)(pf_config.size_y), 2.0));
       for (k = 0; k < free_space.points.size(); ++k)
       {
-        u1 = (int)(free_space.points[k].x * pf_config.scale) + pf_config.offset_x;
-        v1 = (int)(free_space.points[k].y * pf_config.scale) + pf_config.offset_y;
+        u2 = (int)(free_space.points[k].x * pf_config.scale) + pf_config.offset_x;
+        v2 = (int)(free_space.points[k].y * pf_config.scale) + pf_config.offset_y;
           
-        distance = sqrt(pow((float)(u1 - j), 2.0) + pow((float)(v1 - i), 2.0));
+        distance = sqrt(pow((float)(u2 - u1), 2.0) + pow((float)(v2 - v1), 2.0));
           
         if (distance < min_distance)
         {
@@ -302,20 +344,7 @@ void LocalPlanningAlgorithm::findLocalGoalCandidates(pcl::PointCloud<pcl::PointX
       
       if (min_distance == 0.0) min_distance = 1.0;
       force = pf_config.wr / pow(min_distance, pf_config.ar);
-        
-      /*
-      u1 = (int)(goal_lidar.x * pf_config.scale) + pf_config.offset_x;
-      v1 = (int)(goal_lidar.y * pf_config.scale) + pf_config.offset_y;
-      distance = sqrt(pow((float)(u1 - j), 2.0) + pow((float)(v1 - i), 2.0));
-      
-      if (distance == 0.0) distance = 1.0;
-      force = force - pf_config.wa / pow(distance, pf_config.aa);
-      */
     } 
-    else
-    {
-      force = -1.0;
-    }
   }
   
   

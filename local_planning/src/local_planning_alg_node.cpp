@@ -181,7 +181,19 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   //////////////////////////////////////////////////
   //// NAIVE GEODESIC PATH CALCULATION
   vector<vector<cv::Point> > contour;
-  this->alg_.findLocalGoalCandidates(free_space_pcl, this->goal_lidar_, this->pf_config_, contour);
+  cv::Point2d goal_candidate;
+  int radious;
+  this->alg_.findLocalGoalCandidates(free_space_pcl, this->goal_lidar_, this->pf_config_, contour, radious, goal_candidate);
+  
+  //plot
+  cv::Point2d uv, uv2;
+  uv.x = this->pf_config_.offset_x;
+  uv.y = this->pf_config_.offset_y;
+  uv2.x = (int)(this->goal_lidar_.x * this->pf_config_.scale) + this->pf_config_.offset_x;
+  uv2.y = (int)(this->goal_lidar_.y * this->pf_config_.scale) + this->pf_config_.offset_y;
+  cv::circle(roads_map, uv, radious, CV_RGB(MAX_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), 1);
+  cv::circle(roads_map, uv2, radious, CV_RGB(MAX_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), 1);
+  cv::circle(roads_map, goal_candidate, 1, CV_RGB(EMPTY_PIXEL, MAX_PIXEL, EMPTY_PIXEL), -1);
   //////////////////////////////////////////////////
   
   
@@ -199,7 +211,7 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   std_msgs::Header header; // empty header
   header.stamp = ros::Time::now(); // time
   cv_bridge::CvImage output_bridge;
-  output_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, roads_map_plot);
+  output_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, roads_map);
   this->plot_publisher_.publish(output_bridge.toImageMsg());
   if (this->save_map_)
   {
