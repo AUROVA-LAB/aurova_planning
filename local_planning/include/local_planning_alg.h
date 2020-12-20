@@ -179,7 +179,7 @@ class LocalPlanningAlgorithm
                                 PFConfig& pf_config,
                                 vector<vector<cv::Point> >& contour,
                                 int& radious,
-                                cv::Point2d& goal_candidate);
+                                vector<cv::Point2d>& goal_candidate);
 };
 
 #endif
