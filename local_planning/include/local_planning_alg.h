@@ -172,14 +172,14 @@ class LocalPlanningAlgorithm
                               PFConfig pf_config, 
                               cv::Mat& roads_map);
                               
-   void findLocalGoal(cv::Mat roads_map, PFConfig pf_config, cv::Point2f& goal_local);
    
-   void findLocalGoalCandidates(pcl::PointCloud<pcl::PointXYZ> free_space, 
-                                cv::Point2f goal_lidar,
-                                PFConfig& pf_config,
-                                vector<vector<cv::Point> >& contour,
-                                int& radious,
-                                vector<cv::Point2d>& goal_candidate);
+   void findLocalGoal(pcl::PointCloud<pcl::PointXYZ> free_space, 
+                      cv::Point2f goal_lidar,
+                      PFConfig& pf_config,
+                      vector<vector<cv::Point> >& contour,
+                      int& radious,
+                      vector<cv::Point2d>& goal_candidates,
+                      cv::Point2d& local_goal);
 };
 
 #endif

@@ -203,57 +203,19 @@ void LocalPlanningAlgorithm::findTransitableAreas(cv::Mat pf_map,
   return;
 }
 
-void LocalPlanningAlgorithm::findLocalGoal(cv::Mat roads_map, PFConfig pf_config, cv::Point2f& goal_local)
-{
-  
-  int i, j, rad_min, rad_max; 
-  int ini_i, ini_j, end_i, end_j;
-  int max_val;
-  
-  rad_min = (int)(pf_config.rad_min * pf_config.scale);
-  rad_max = (int)(pf_config.rad_max * pf_config.scale);
-  
-  ini_i = pf_config.offset_y - rad_max;
-  ini_j = pf_config.offset_x - rad_max;
-  
-  end_i = pf_config.offset_y + rad_max;
-  end_j = pf_config.offset_x + rad_max;
-  
-  if (ini_i < 0) ini_i = 0;
-  if (ini_j < 0) ini_j = 0;
-  
-  if (end_i > roads_map.rows) end_i = roads_map.rows;
-  if (end_j > roads_map.cols) end_j = roads_map.cols;
-  
-  max_val = 0;
-  for(i = ini_i; i < end_i; i++)
-  {
-    for(j = ini_j; j < end_j; j++)
-    {
-      if (roads_map.at<cv::Vec3b>(i,j)[0] > max_val)
-      {
-        max_val = roads_map.at<cv::Vec3b>(i,j)[0];
-        goal_local.x = j;
-        goal_local.y = i;
-      }
-    }
-  }
-  
-  return;
-}
-
-void LocalPlanningAlgorithm::findLocalGoalCandidates(pcl::PointCloud<pcl::PointXYZ> free_space, 
-                                                     cv::Point2f goal_lidar,
-                                                     PFConfig& pf_config,
-                                                     vector<vector<cv::Point> >& contour,
-                                                     int& radious,
-                                                     vector<cv::Point2d>& goal_candidate)
+void LocalPlanningAlgorithm::findLocalGoal(pcl::PointCloud<pcl::PointXYZ> free_space, 
+                                           cv::Point2f goal_lidar,
+                                           PFConfig& pf_config,
+                                           vector<vector<cv::Point> >& contour,
+                                           int& radious,
+                                           vector<cv::Point2d>& goal_candidates,
+                                           cv::Point2d& local_goal)
 {
   int ini = 0;
   int end = 360;
   int res = 1;
-  float x, y, in_out_flag, angle, range;
-  float force, force_pre, force_pre2, min_distance, distance, grad;
+  float x, y, in_out_flag, angle, range, min_force;
+  float force, min_distance, distance;
   bool measure_dist = true;
   int i, j, k, u1, v1, u2, v2;
   cv::Point2d point;
@@ -280,12 +242,9 @@ void LocalPlanningAlgorithm::findLocalGoalCandidates(pcl::PointCloud<pcl::PointX
   //range = sqrt(pow(goal_lidar.x, 2) + pow(goal_lidar.y, 2)) / 2.0;
   range = pf_config.rad_max;
   radious = (int)(range * pf_config.scale);
-  force_pre = -1.0;
-  force_pre2 = -1.0;
+  min_force = 1000000;
   for (i = ini; i < end; i += res)
   { 
-    ////////////////////////////////////////////////////////////
-    //// circle around lidar
     angle = (float)i;
     x = range * cos(angle);
     y = range * sin(angle);
@@ -310,23 +269,27 @@ void LocalPlanningAlgorithm::findLocalGoalCandidates(pcl::PointCloud<pcl::PointX
         }
       }
       
-      //if (min_distance == 0.0) min_distance = 1.0;
-      //force = pf_config.wr / pow(min_distance, pf_config.ar);
       force = min_distance;
+      
+      if (force > (2.0 * pf_config.scale)) //TODO: get from param
+      {
+        point.x = (float)u1;
+        point.y = (float)v1;
+        goal_candidates.push_back(point);
+      
+        u2 = (int)(goal_lidar.x * pf_config.scale) + pf_config.offset_x;
+        v2 = (int)(goal_lidar.y * pf_config.scale) + pf_config.offset_y; 
+      
+        distance = sqrt(pow((float)(u2 - u1), 2.0) + pow((float)(v2 - v1), 2.0));
+      
+        if (distance < min_force)
+        {
+          min_force = distance;
+          local_goal.x = (float)u1;
+          local_goal.y = (float)v1;
+        }
+      }
     }
-    else
-    {
-      force = -1.0;
-    }
-    
-    
-    if (force > (2.0 * pf_config.scale))
-    {
-      point.x = (float)u1;
-      point.y = (float)v1;
-      goal_candidate.push_back(point); 
-    }
-    //////////////////////////////////////////////////////////// 
   }
   
   

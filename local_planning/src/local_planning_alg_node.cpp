@@ -181,27 +181,25 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   //////////////////////////////////////////////////
   //// NAIVE GEODESIC PATH CALCULATION
   vector<vector<cv::Point> > contour;
-  vector<cv::Point2d> goal_candidate;
+  vector<cv::Point2d> goal_candidates;
+  cv::Point2d local_goal;
   int radious;
-  this->alg_.findLocalGoalCandidates(free_space_pcl, this->goal_lidar_, this->pf_config_, contour, radious, goal_candidate);
+  this->alg_.findLocalGoal(free_space_pcl, 
+                           this->goal_lidar_, 
+                           this->pf_config_, 
+                           contour, radious, 
+                           goal_candidates, local_goal);
   
   //plot
   cv::Point2d uv, uv2;
   uv.x = this->pf_config_.offset_x;
   uv.y = this->pf_config_.offset_y;
   cv::circle(pf_map, uv, radious, CV_RGB(MAX_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), 1);
-  for (int i = 0; i < goal_candidate.size(); i++)
+  for (int i = 0; i < goal_candidates.size(); i++)
   {
-    cv::circle(pf_map, goal_candidate[i], 1, CV_RGB(EMPTY_PIXEL, MAX_PIXEL, EMPTY_PIXEL), -1);
+    cv::circle(pf_map, goal_candidates[i], 1, CV_RGB(EMPTY_PIXEL, EMPTY_PIXEL, MAX_PIXEL), -1);
   }
-  //////////////////////////////////////////////////
-  
-  
-  
-  //////////////////////////////////////////////////
-  //// LOCAL GOAL CALCULATION
-  //cv::Point2f goal_local;
-  //this->alg_.findLocalGoal(roads_map, this->pf_config_, goal_local);
+  cv::circle(pf_map, local_goal, 2, CV_RGB(EMPTY_PIXEL, MAX_PIXEL, EMPTY_PIXEL), -1);
   //////////////////////////////////////////////////
   
   
@@ -233,16 +231,6 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   end2 = ros::Time::now().toSec();
   ROS_INFO("duration naive: %f", (end1 - ini1) + (end2 - ini2));
   ROS_INFO("duration total (to plot): %f", end - ini);
-  
-  /*
-  cv::Point2d uv, uv2;
-  uv.x = this->pf_config_.offset_x;
-  uv.y = this->pf_config_.offset_y;
-  uv2.x = this->pf_config_.min_pt_x;
-  uv2.y = this->pf_config_.min_pt_y;
-  cv::circle(pf_map_plt, uv, 2, CV_RGB(EMPTY_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), -1);
-  cv::circle(pf_map_plt, uv2, 2, CV_RGB(EMPTY_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), -1);
-  */
   
   this->alg_.unlock();
 }
