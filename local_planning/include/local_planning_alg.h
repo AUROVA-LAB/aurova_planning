@@ -28,6 +28,7 @@
 #include <local_planning/LocalPlanningConfig.h>
 #include <sensor_msgs/PointCloud2.h>
 #include "geometry_msgs/PoseWithCovarianceStamped.h"
+#include "ackermann_msgs/AckermannDriveStamped.h"
 #include <pcl_ros/point_cloud.h>
 #include <planning/local_planning.h>
 #include <image_transport/image_transport.h>
@@ -41,6 +42,7 @@
 #define INVALID_PIXEL 0.123
 #define EMPTY_PIXEL 0.0
 #define MAX_PIXEL 255.0
+#define PI 3.141592
 
 struct PFConfig
 {
@@ -58,6 +60,23 @@ struct PFConfig
   int min_pt_y;
   float rad_min;
   float rad_max;
+};
+
+struct CtrlConfig
+{
+  float max_angle;
+  float delta_angle;
+  float delta_time;
+  float v_length;
+  float v_min;
+  float v_max;
+};
+
+struct Pose2D
+{
+  float x;
+  float y;
+  float yaw;
 };
 
 //include local_planning_alg main library
@@ -178,8 +197,17 @@ class LocalPlanningAlgorithm
                       PFConfig& pf_config,
                       vector<vector<cv::Point> >& contour,
                       int& radious,
+                      cv::Mat& plot_img,
                       vector<cv::Point2d>& goal_candidates,
                       cv::Point2d& local_goal);
+                      
+   void findControlAction(cv::Point2d local_goal,
+                          Pose2D base_pose,
+                          PFConfig pf_config,
+                          CtrlConfig ctrl_config,
+                          vector<vector<cv::Point> > contour,
+                          ackermann_msgs::AckermannDriveStamped& ackermann_state,
+                          cv::Mat& plot_img);
 };
 
 #endif

@@ -208,6 +208,7 @@ void LocalPlanningAlgorithm::findLocalGoal(pcl::PointCloud<pcl::PointXYZ> free_s
                                            PFConfig& pf_config,
                                            vector<vector<cv::Point> >& contour,
                                            int& radious,
+                                           cv::Mat& plot_img,
                                            vector<cv::Point2d>& goal_candidates,
                                            cv::Point2d& local_goal)
 {
@@ -235,6 +236,8 @@ void LocalPlanningAlgorithm::findLocalGoal(pcl::PointCloud<pcl::PointXYZ> free_s
   u2 = (int)(free_space.points[0].x * pf_config.scale) + pf_config.offset_x;
   v2 = (int)(free_space.points[0].y * pf_config.scale) + pf_config.offset_y;
   cv::line(polygon, cv::Point(u1, v1),  cv::Point(u2, v2), cv::Scalar(MAX_PIXEL), 1);
+  polygon.copyTo(plot_img);
+  cv::cvtColor(plot_img, plot_img, cv::COLOR_GRAY2BGR);
   
   // build contour
   cv::findContours(polygon, contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
@@ -292,6 +295,131 @@ void LocalPlanningAlgorithm::findLocalGoal(pcl::PointCloud<pcl::PointXYZ> free_s
     }
   }
   
+  
+  return;
+}
+
+void LocalPlanningAlgorithm::findControlAction (cv::Point2d local_goal,
+                                                Pose2D base_pose,
+                                                PFConfig pf_config,
+                                                CtrlConfig ctrl_config,
+                                                vector<vector<cv::Point> > contour,
+                                                ackermann_msgs::AckermannDriveStamped& ackermann_state,
+                                                cv::Mat& plot_img)
+{
+  float k_sp = (ctrl_config.v_max - ctrl_config.v_min) / ctrl_config.max_angle;
+  float delta_t = ctrl_config.delta_time * 20; //TODO: from param
+  float d_vehicle = ctrl_config.v_length;
+  float pose_yaw_prev = base_pose.yaw;
+  float pose_x_prev = base_pose.x;
+  float pose_y_prev = base_pose.y;
+  float cost, min_cost, dist_front, dist_rear;
+  float min_st = 0.0;
+  float min_sp = 0.0;
+  cv::Point2d min_uv, min_uv_front;
+  float base_front_x = base_pose.x + d_vehicle * cos(base_pose.yaw);
+  float base_front_y = base_pose.y + d_vehicle * sin(base_pose.yaw);
+  float k_diff = 0.0; //TODO: get from param
+  float k_abs = 1.0; //TODO: get from param
+  
+  dist_rear = sqrt(pow(local_goal.x - base_pose.x, 2) + pow(local_goal.y - base_pose.y, 2));
+	dist_front = sqrt(pow(local_goal.x - base_front_x, 2) + pow(local_goal.y - base_front_y, 2));
+	min_cost = dist_rear * k_abs - (dist_front - dist_rear) * k_diff;
+  for (float st = -1 * ctrl_config.max_angle; st < ctrl_config.max_angle; st += ctrl_config.delta_angle)
+  {
+    // FRONT
+    float lineal_speed = ctrl_config.v_max - abs(st) * k_sp;
+    float steering_radians = st * M_PI / 180.0;
+    
+    float angular_speed_yaw = (lineal_speed / d_vehicle) * sin(steering_radians);
+    float pose_yaw = pose_yaw_prev + angular_speed_yaw * delta_t;
+    
+    float lineal_speed_x = lineal_speed * cos(pose_yaw) * cos(steering_radians);
+    float lineal_speed_y = lineal_speed * sin(pose_yaw) * cos(steering_radians);
+    float pose_x = pose_x_prev + lineal_speed_x * delta_t;
+    float pose_y = pose_y_prev + lineal_speed_y * delta_t;
+    float pose_front_x = pose_x + d_vehicle * cos(pose_yaw);
+    float pose_front_y = pose_y + d_vehicle * sin(pose_yaw);
+    
+    cv::Point2d uv, uv_front;
+		float measure_dist;
+		uv.x = (float)(pose_x * pf_config.scale) + pf_config.offset_x;
+		uv.y = (float)(pose_y * pf_config.scale) + pf_config.offset_y;
+		float in_out_flag = (float)cv::pointPolygonTest(contour[0], uv, measure_dist);
+		if (in_out_flag > 0)
+    {
+    	uv.x = (int)(pose_x * pf_config.scale) + pf_config.offset_x;
+			uv.y = (int)(pose_y * pf_config.scale) + pf_config.offset_y;
+			cv::circle(plot_img, uv, 0, CV_RGB(MAX_PIXEL, MAX_PIXEL, EMPTY_PIXEL), -1);
+			uv_front.x = (int)(pose_front_x * pf_config.scale) + pf_config.offset_x;
+			uv_front.y = (int)(pose_front_y * pf_config.scale) + pf_config.offset_y;
+			cv::circle(plot_img, uv_front, 0, CV_RGB(EMPTY_PIXEL, MAX_PIXEL, MAX_PIXEL), -1);
+			
+			dist_rear = sqrt(pow(local_goal.x - uv.x, 2) + pow(local_goal.y - uv.y, 2));
+			dist_front = sqrt(pow(local_goal.x - uv_front.x, 2) + pow(local_goal.y - uv_front.y, 2));
+			cost = dist_rear * k_abs - (dist_front - dist_rear) * k_diff;
+			
+			if (cost < min_cost)
+			{
+			  min_uv.x = (int)(pose_x * pf_config.scale) + pf_config.offset_x;
+				min_uv.y = (int)(pose_y * pf_config.scale) + pf_config.offset_y;
+				min_uv_front.x = (int)(pose_front_x * pf_config.scale) + pf_config.offset_x;
+				min_uv_front.y = (int)(pose_front_y * pf_config.scale) + pf_config.offset_y;
+				
+				min_cost = cost;
+				min_st = (st*PI)/180.0;
+		    min_sp = lineal_speed;
+			}
+    }
+		
+		// REAR
+		lineal_speed = -1 * lineal_speed;
+    
+    angular_speed_yaw = (lineal_speed / d_vehicle) * sin(steering_radians);
+    pose_yaw = pose_yaw_prev + angular_speed_yaw * delta_t;
+    
+    lineal_speed_x = lineal_speed * cos(pose_yaw) * cos(steering_radians);
+    lineal_speed_y = lineal_speed * sin(pose_yaw) * cos(steering_radians);
+    pose_x = pose_x_prev + lineal_speed_x * delta_t;
+    pose_y = pose_y_prev + lineal_speed_y * delta_t;
+    pose_front_x = pose_x + d_vehicle * cos(pose_yaw);
+    pose_front_y = pose_y + d_vehicle * sin(pose_yaw);
+    
+		measure_dist;
+		uv.x = (float)(pose_x * pf_config.scale) + pf_config.offset_x;
+		uv.y = (float)(pose_y * pf_config.scale) + pf_config.offset_y;
+		in_out_flag = (float)cv::pointPolygonTest(contour[0], uv, measure_dist);
+		if (in_out_flag > 0)
+    {
+    	uv.x = (int)(pose_x * pf_config.scale) + pf_config.offset_x;
+			uv.y = (int)(pose_y * pf_config.scale) + pf_config.offset_y;
+			cv::circle(plot_img, uv, 0, CV_RGB(MAX_PIXEL, MAX_PIXEL, EMPTY_PIXEL), -1);
+			uv_front.x = (int)(pose_front_x * pf_config.scale) + pf_config.offset_x;
+			uv_front.y = (int)(pose_front_y * pf_config.scale) + pf_config.offset_y;
+			cv::circle(plot_img, uv_front, 0, CV_RGB(EMPTY_PIXEL, MAX_PIXEL, MAX_PIXEL), -1);
+			
+			dist_rear = sqrt(pow(local_goal.x - uv.x, 2) + pow(local_goal.y - uv.y, 2));
+			dist_front = sqrt(pow(local_goal.x - uv_front.x, 2) + pow(local_goal.y - uv_front.y, 2));
+			cost = dist_rear * k_abs - (dist_front - dist_rear) * k_diff;
+			
+			if (cost < min_cost)
+			{
+			  min_uv.x = (int)(pose_x * pf_config.scale) + pf_config.offset_x;
+				min_uv.y = (int)(pose_y * pf_config.scale) + pf_config.offset_y;
+				min_uv_front.x = (int)(pose_front_x * pf_config.scale) + pf_config.offset_x;
+				min_uv_front.y = (int)(pose_front_y * pf_config.scale) + pf_config.offset_y;
+				
+				min_cost = cost;
+				min_st = (st*PI)/180.0;
+		    min_sp = lineal_speed;
+			}
+    }
+  }
+  
+  ackermann_state.drive.steering_angle = min_st;
+	ackermann_state.drive.speed = min_sp;
+	cv::circle(plot_img, min_uv, 1, CV_RGB(MAX_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), -1);
+	cv::circle(plot_img, min_uv_front, 1, CV_RGB(MAX_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), -1);
   
   return;
 }
