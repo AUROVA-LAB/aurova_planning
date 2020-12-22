@@ -70,6 +70,7 @@ struct CtrlConfig
   float v_length;
   float v_min;
   float v_max;
+  float margin_sec;
 };
 
 struct Pose2D
@@ -201,8 +202,9 @@ class LocalPlanningAlgorithm
                       vector<cv::Point2d>& goal_candidates,
                       cv::Point2d& local_goal);
                       
-   void findControlAction(cv::Point2d local_goal,
-                          Pose2D base_pose,
+   void findControlAction(pcl::PointCloud<pcl::PointXYZ> free_space,
+                          cv::Point2d local_goal,
+                          Pose2D base_pose, cv::Point2f goal_lidar,
                           PFConfig pf_config,
                           CtrlConfig ctrl_config,
                           vector<vector<cv::Point> > contour,

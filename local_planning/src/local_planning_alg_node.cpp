@@ -18,6 +18,7 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->public_node_handle_.getParam("/ackermann_control/v_length", this->ctrl_config_.v_length);
   this->public_node_handle_.getParam("/ackermann_control/v_min", this->ctrl_config_.v_min);
   this->public_node_handle_.getParam("/ackermann_control/v_max", this->ctrl_config_.v_max);
+  this->public_node_handle_.getParam("/ackermann_control/margin_sec", this->ctrl_config_.margin_sec);
   
   this->public_node_handle_.getParam("/pf_configuration/threshold_grad", this->pf_config_.threshold_grad);
   this->public_node_handle_.getParam("/pf_configuration/scale", this->pf_config_.scale);
@@ -222,7 +223,8 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
 		//////////////////////////////////////////////////
 		//// CONTROL ACTIONS
 		ackermann_msgs::AckermannDriveStamped ackermann_state;
-		this->alg_.findControlAction (local_goal, this->base_in_lidarf_, 
+		this->alg_.findControlAction (free_space_pcl, local_goal, 
+		                              this->base_in_lidarf_, this->goal_lidar_,
 		                              this->pf_config_, this->ctrl_config_, 
 		                              contour, ackermann_state, plot_img);
 		this->ackermann_publisher_.publish(ackermann_state.drive);
