@@ -314,7 +314,9 @@ void LocalPlanningAlgorithm::findControlAction (pcl::PointCloud<pcl::PointXYZ> f
   float pose_yaw_prev = base_pose.yaw;
   float pose_x_prev = base_pose.x;
   float pose_y_prev = base_pose.y;
-  float cost, min_cost, dist_front, dist_rear;
+  float cost, min_cost, dist_front, dist_rear, dist_ang;
+  float yaw_gl_plt, yaw_ps_plt, yaw_diff_plt;
+  double roll, pitch, diff_yaw;
   float min_st = 0.0;
   float min_sp = 0.0;
   float min_distance_f, distance_f, min_distance_r, distance_r;
@@ -323,10 +325,30 @@ void LocalPlanningAlgorithm::findControlAction (pcl::PointCloud<pcl::PointXYZ> f
   float base_front_y = base_pose.y + d_vehicle * sin(base_pose.yaw);
   float k_diff = 0.0; //TODO: get from param
   float k_abs = 1.0; //TODO: get from param
+  float k_ang = 20.0; //TODO: get from param
+  
+  
+  ////////////////////////////////////////////////////
+  //// angle to local goal [-pi, pi]
+  /*double r = sqrt(pow(local_goal.x, 2) + pow(local_goal.y, 2));
+  double yaw_to_goal = asin(local_goal.y / r);
+  if (local_goal.x < 0.0 && local_goal.y <= 0.0)
+  {
+    yaw_to_goal = -PI - yaw_to_goal;
+  }
+  else if (local_goal.x < 0.0 && local_goal.y > 0.0)
+  {
+    yaw_to_goal = PI - yaw_to_goal;
+  }
+  ////////////////////////////////////////////////////
   
   dist_rear = sqrt(pow(local_goal.x - base_pose.x, 2) + pow(local_goal.y - base_pose.y, 2));
 	dist_front = sqrt(pow(local_goal.x - base_front_x, 2) + pow(local_goal.y - base_front_y, 2));
-	min_cost = dist_rear * k_abs - (dist_front - dist_rear) * k_diff;
+  tf::Quaternion quaternion = tf::createQuaternionFromRPY(0, 0, yaw_to_goal - pose_yaw_prev);
+	tf::Matrix3x3 m_pose(quaternion);
+	m_pose.getRPY(roll, pitch, diff_yaw);
+	min_cost = dist_rear * k_abs + abs(diff_yaw) * k_ang - (dist_front - dist_rear) * k_diff;*/
+	min_cost = 1000;
   for (float st = -1 * ctrl_config.max_angle; st < ctrl_config.max_angle; st += ctrl_config.delta_angle)
   {
     // FRONT
@@ -347,6 +369,8 @@ void LocalPlanningAlgorithm::findControlAction (pcl::PointCloud<pcl::PointXYZ> f
 		float measure_dist;
 		uv.x = (float)(pose_x * pf_config.scale) + pf_config.offset_x;
 		uv.y = (float)(pose_y * pf_config.scale) + pf_config.offset_y;
+		uv_front.x = (float)(pose_front_x * pf_config.scale) + pf_config.offset_x;
+		uv_front.y = (float)(pose_front_y * pf_config.scale) + pf_config.offset_y;
 		float in_out_flag = (float)cv::pointPolygonTest(contour[0], uv, measure_dist);
 		if (in_out_flag > 0)
     {
@@ -372,16 +396,27 @@ void LocalPlanningAlgorithm::findControlAction (pcl::PointCloud<pcl::PointXYZ> f
     	
       if (min_distance_r > ctrl_config.margin_sec && min_distance_f > ctrl_config.margin_sec)
       {
-		  	uv.x = (int)(pose_x * pf_config.scale) + pf_config.offset_x;
-				uv.y = (int)(pose_y * pf_config.scale) + pf_config.offset_y;
-				cv::circle(plot_img, uv, 0, CV_RGB(MAX_PIXEL, MAX_PIXEL, EMPTY_PIXEL), -1);
-				uv_front.x = (int)(pose_front_x * pf_config.scale) + pf_config.offset_x;
-				uv_front.y = (int)(pose_front_y * pf_config.scale) + pf_config.offset_y;
-				cv::circle(plot_img, uv_front, 0, CV_RGB(EMPTY_PIXEL, MAX_PIXEL, MAX_PIXEL), -1);
-			
+			  ////////////////////////////////////////////////////
+				//// angle to local goal [-pi, pi]
+				double r = sqrt(pow(local_goal.x - uv.x, 2) + pow(local_goal.y - uv.y, 2));
+				double yaw_to_goal = asin((local_goal.y  - uv.y) / r);
+				if (local_goal.x < uv.x && local_goal.y <= uv.y)
+				{
+					yaw_to_goal = -PI - yaw_to_goal;
+				}
+				else if (local_goal.x < uv.x && local_goal.y > uv.y)
+				{
+					yaw_to_goal = PI - yaw_to_goal;
+				}
+				////////////////////////////////////////////////////
+				
+				tf::Quaternion quaternion = tf::createQuaternionFromRPY(0, 0, yaw_to_goal - pose_yaw);
+				tf::Matrix3x3 m_pose(quaternion);
+				m_pose.getRPY(roll, pitch, diff_yaw);
+		
 				dist_rear = sqrt(pow(local_goal.x - uv.x, 2) + pow(local_goal.y - uv.y, 2));
 				dist_front = sqrt(pow(local_goal.x - uv_front.x, 2) + pow(local_goal.y - uv_front.y, 2));
-				cost = dist_rear * k_abs - (dist_front - dist_rear) * k_diff;
+				cost = dist_rear * k_abs + abs(diff_yaw) * k_ang - (dist_front - dist_rear) * k_diff;
 			
 				if (cost < min_cost)
 				{
@@ -393,7 +428,18 @@ void LocalPlanningAlgorithm::findControlAction (pcl::PointCloud<pcl::PointXYZ> f
 					min_cost = cost;
 					min_st = (st*PI)/180.0;
 				  min_sp = lineal_speed;
+				  
+				  yaw_ps_plt = pose_yaw;
+				  yaw_gl_plt = yaw_to_goal;
+				  yaw_diff_plt = diff_yaw;
 				}
+				
+				uv.x = (int)(pose_x * pf_config.scale) + pf_config.offset_x;
+				uv.y = (int)(pose_y * pf_config.scale) + pf_config.offset_y;
+				cv::circle(plot_img, uv, 0, CV_RGB(MAX_PIXEL, MAX_PIXEL, EMPTY_PIXEL), -1);
+				uv_front.x = (int)(pose_front_x * pf_config.scale) + pf_config.offset_x;
+				uv_front.y = (int)(pose_front_y * pf_config.scale) + pf_config.offset_y;
+				cv::circle(plot_img, uv_front, 0, CV_RGB(EMPTY_PIXEL, MAX_PIXEL, MAX_PIXEL), -1);
 			}
     }
 		
@@ -413,6 +459,8 @@ void LocalPlanningAlgorithm::findControlAction (pcl::PointCloud<pcl::PointXYZ> f
 		measure_dist;
 		uv.x = (float)(pose_x * pf_config.scale) + pf_config.offset_x;
 		uv.y = (float)(pose_y * pf_config.scale) + pf_config.offset_y;
+		uv_front.x = (float)(pose_front_x * pf_config.scale) + pf_config.offset_x;
+		uv_front.y = (float)(pose_front_y * pf_config.scale) + pf_config.offset_y;
 		in_out_flag = (float)cv::pointPolygonTest(contour[0], uv, measure_dist);
 		if (in_out_flag > 0)
     {
@@ -438,16 +486,27 @@ void LocalPlanningAlgorithm::findControlAction (pcl::PointCloud<pcl::PointXYZ> f
     	
       if (min_distance_r > ctrl_config.margin_sec && min_distance_f > ctrl_config.margin_sec)
       {
-		  	uv.x = (int)(pose_x * pf_config.scale) + pf_config.offset_x;
-				uv.y = (int)(pose_y * pf_config.scale) + pf_config.offset_y;
-				cv::circle(plot_img, uv, 0, CV_RGB(MAX_PIXEL, MAX_PIXEL, EMPTY_PIXEL), -1);
-				uv_front.x = (int)(pose_front_x * pf_config.scale) + pf_config.offset_x;
-				uv_front.y = (int)(pose_front_y * pf_config.scale) + pf_config.offset_y;
-				cv::circle(plot_img, uv_front, 0, CV_RGB(EMPTY_PIXEL, MAX_PIXEL, MAX_PIXEL), -1);
-			
+		  	////////////////////////////////////////////////////
+				//// angle to local goal [-pi, pi]
+				double r = sqrt(pow(local_goal.x - uv.x, 2) + pow(local_goal.y - uv.y, 2));
+				double yaw_to_goal = asin((local_goal.y  - uv.y) / r);
+				if (local_goal.x < uv.x && local_goal.y <= uv.y)
+				{
+					yaw_to_goal = -PI - yaw_to_goal;
+				}
+				else if (local_goal.x < uv.x && local_goal.y > uv.y)
+				{
+					yaw_to_goal = PI - yaw_to_goal;
+				}
+				////////////////////////////////////////////////////
+				
+				tf::Quaternion quaternion = tf::createQuaternionFromRPY(0, 0, yaw_to_goal - pose_yaw);
+				tf::Matrix3x3 m_pose(quaternion);
+				m_pose.getRPY(roll, pitch, diff_yaw);
+		
 				dist_rear = sqrt(pow(local_goal.x - uv.x, 2) + pow(local_goal.y - uv.y, 2));
 				dist_front = sqrt(pow(local_goal.x - uv_front.x, 2) + pow(local_goal.y - uv_front.y, 2));
-				cost = dist_rear * k_abs - (dist_front - dist_rear) * k_diff;
+				cost = dist_rear * k_abs + abs(diff_yaw) * k_ang - (dist_front - dist_rear) * k_diff;
 			
 				if (cost < min_cost)
 				{
@@ -459,15 +518,29 @@ void LocalPlanningAlgorithm::findControlAction (pcl::PointCloud<pcl::PointXYZ> f
 					min_cost = cost;
 					min_st = (st*PI)/180.0;
 				  min_sp = lineal_speed;
+				  
+				  yaw_ps_plt = pose_yaw;
+				  yaw_gl_plt = yaw_to_goal;
+				  yaw_diff_plt = diff_yaw;
 				}
+				
+				uv.x = (int)(pose_x * pf_config.scale) + pf_config.offset_x;
+				uv.y = (int)(pose_y * pf_config.scale) + pf_config.offset_y;
+				cv::circle(plot_img, uv, 0, CV_RGB(MAX_PIXEL, MAX_PIXEL, EMPTY_PIXEL), -1);
+				uv_front.x = (int)(pose_front_x * pf_config.scale) + pf_config.offset_x;
+				uv_front.y = (int)(pose_front_y * pf_config.scale) + pf_config.offset_y;
+				cv::circle(plot_img, uv_front, 0, CV_RGB(EMPTY_PIXEL, MAX_PIXEL, MAX_PIXEL), -1);
 			}
     }
   }
   
   ackermann_state.drive.steering_angle = min_st;
 	ackermann_state.drive.speed = ctrl_config.v_max - abs(min_st) * k_sp;
+	if (min_sp < 0.0) ackermann_state.drive.speed = -1 * ackermann_state.drive.speed;
 	cv::circle(plot_img, min_uv, 1, CV_RGB(MAX_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), -1);
 	cv::circle(plot_img, min_uv_front, 1, CV_RGB(MAX_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), -1);
+	
+	ROS_INFO("goal: %f, pose: %f, diff: %f", yaw_gl_plt*180.0/PI, yaw_ps_plt*180.0/PI, yaw_diff_plt*180.0/PI);
   
   return;
 }

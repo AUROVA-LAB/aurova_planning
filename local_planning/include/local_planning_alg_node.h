@@ -58,6 +58,8 @@ class LocalPlanningAlgNode : public algorithm_base::IriBaseAlgorithm<LocalPlanni
     std::string out_path_map_;
     bool save_map_;
     bool goal_received_;
+    bool flag_prop_;
+  	float kp_;
     
     // [publisher attributes]
     ros::Publisher lidar_publisher_;
