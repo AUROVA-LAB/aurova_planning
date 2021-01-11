@@ -66,6 +66,8 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->plot_publisher_ = it_.advertise("/plot_pf_map", 1);
   this->ackermann_publisher_ = this->public_node_handle_.advertise < ackermann_msgs::AckermannDrive
       > ("/ackermann_cmd", 1);
+  this->ackermann_publisher2_ = this->public_node_handle_.advertise < ackermann_msgs::AckermannDriveStamped
+      > ("/desired_ackermann_state", 1);
   
   // [init subscribers]
   this->lidar_subscriber_ = this->public_node_handle_.subscribe("/velodyne_points", 1,
@@ -238,6 +240,7 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
 		  speed_prev = ackermann_state.drive.speed;
 		}
 		this->ackermann_publisher_.publish(ackermann_state.drive);
+		this->ackermann_publisher2_.publish(ackermann_state);
 		//////////////////////////////////////////////////
 		
 		

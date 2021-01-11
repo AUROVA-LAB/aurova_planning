@@ -65,6 +65,7 @@ class LocalPlanningAlgNode : public algorithm_base::IriBaseAlgorithm<LocalPlanni
     ros::Publisher lidar_publisher_;
     ros::Publisher obstacles_publisher_;
     ros::Publisher ackermann_publisher_;
+    ros::Publisher ackermann_publisher2_;
     image_transport::Publisher plot_publisher_;
 
     // [subscriber attributes]
