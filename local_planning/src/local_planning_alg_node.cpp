@@ -68,6 +68,9 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
       > ("/ackermann_cmd", 1);
   this->ackermann_publisher2_ = this->public_node_handle_.advertise < ackermann_msgs::AckermannDriveStamped
       > ("/desired_ackermann_state", 1);
+  this->ford_rec_publisher_ = this->public_node_handle_.advertise < std_msgs::Float32 > ("/forward_recommended_velocity", 1);
+
+  this->back_rec_publisher_ = this->public_node_handle_.advertise < std_msgs::Float32 > ("/backward_recommended_velocity", 1);
   
   // [init subscribers]
   this->lidar_subscriber_ = this->public_node_handle_.subscribe("/velodyne_points", 1,
@@ -242,6 +245,12 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
 		this->ackermann_publisher_.publish(ackermann_state.drive);
 		ackermann_state.drive.steering_angle = ackermann_state.drive.steering_angle*180.0/PI;
 		this->ackermann_publisher2_.publish(ackermann_state);
+		
+		// recommended speer bridge
+		ford_rec_.data = ackermann_state.drive.speed;
+		back_rec_.data = ackermann_state.drive.speed * -1;
+		this->ford_rec_publisher_.publish(this->ford_rec_);
+    this->back_rec_publisher_.publish(this->back_rec_);
 		//////////////////////////////////////////////////
 		
 		

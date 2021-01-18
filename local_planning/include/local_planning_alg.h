@@ -29,6 +29,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include "geometry_msgs/PoseWithCovarianceStamped.h"
 #include "ackermann_msgs/AckermannDriveStamped.h"
+#include "std_msgs/Float32.h"
 #include <pcl_ros/point_cloud.h>
 #include <planning/local_planning.h>
 #include <image_transport/image_transport.h>

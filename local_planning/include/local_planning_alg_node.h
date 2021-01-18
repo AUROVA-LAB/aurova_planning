@@ -47,6 +47,8 @@ class LocalPlanningAlgNode : public algorithm_base::IriBaseAlgorithm<LocalPlanni
     local_planning_lib::SensorConfiguration lidar_config_;
     local_planning_lib::FilteringConfiguration filter_config_;
     ackermann_msgs::AckermannDriveStamped ackermann_state_;
+    std_msgs::Float32 back_rec_;
+    std_msgs::Float32 ford_rec_;
     CvFont font_;
     cv::Point2f goal_lidar_;
     std::string frame_id_;
@@ -66,6 +68,8 @@ class LocalPlanningAlgNode : public algorithm_base::IriBaseAlgorithm<LocalPlanni
     ros::Publisher obstacles_publisher_;
     ros::Publisher ackermann_publisher_;
     ros::Publisher ackermann_publisher2_;
+    ros::Publisher back_rec_publisher_;
+    ros::Publisher ford_rec_publisher_;
     image_transport::Publisher plot_publisher_;
 
     // [subscriber attributes]
