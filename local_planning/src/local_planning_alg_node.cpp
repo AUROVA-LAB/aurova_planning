@@ -240,6 +240,7 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
       this->ackermann_state_.drive.speed = speed_prev + (this->ackermann_state_.drive.speed - speed_prev) * this->kp_;
       speed_prev = this->ackermann_state_.drive.speed;
     }
+    this->ackermann_state2_ = this->ackermann_state_;
     this->ackermann_state2_.drive.steering_angle = this->ackermann_state_.drive.steering_angle * 180.0 / PI;
     this->ctrl_received_ = true;
     //////////////////////////////////////////////////
