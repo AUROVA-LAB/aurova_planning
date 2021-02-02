@@ -363,6 +363,10 @@ void LocalPlanningAlgNode::node_config_update(Config &config, uint32_t level)
 {
   this->alg_.lock();
   this->config_ = config;
+  this->config_.a;
+  this->config_.b;
+  this->config_.c;
+
   this->alg_.unlock();
 }
 
