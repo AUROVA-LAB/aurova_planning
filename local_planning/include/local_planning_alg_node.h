@@ -67,6 +67,7 @@ private:
   // [publisher attributes]
   ros::Publisher lidar_publisher_;
   ros::Publisher obstacles_publisher_;
+  ros::Publisher limits_publisher_;
   ros::Publisher ackermann_publisher_;
   ros::Publisher ackermann_publisher2_;
   ros::Publisher back_rec_publisher_;

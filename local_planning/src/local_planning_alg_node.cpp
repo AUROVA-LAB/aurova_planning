@@ -48,6 +48,7 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->public_node_handle_.getParam("/filter_configuration/c", filter_config_.c);
   this->public_node_handle_.getParam("/filter_configuration/variance", filter_config_.variance);
   this->public_node_handle_.getParam("/filter_configuration/radious", filter_config_.radious);
+  this->public_node_handle_.getParam("/filter_configuration/var_factor", filter_config_.var_factor);
 
   this->public_node_handle_.getParam("/lidar_configuration/max_elevation_angle", lidar_config_.max_elevation_angle);
   this->public_node_handle_.getParam("/lidar_configuration/min_elevation_angle", lidar_config_.min_elevation_angle);
@@ -69,6 +70,7 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   // [init publishers]
   this->lidar_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/velodyne_obstacles", 1);
   this->obstacles_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_obstacles", 1);
+  this->limits_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_limits", 1);
   this->plot_publisher_ = it_.advertise("/plot_pf_map", 1);
   this->ackermann_publisher_ = this->public_node_handle_.advertise < ackermann_msgs::AckermannDrive
       > ("/ackermann_cmd", 1);
@@ -142,21 +144,24 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     pcl::PCLPointCloud2 scan_pcl2;
     static pcl::PointCloud<pcl::PointXYZ> scan_pcl;
     static pcl::PointCloud<pcl::PointXYZ> scan_pcl_filt;
-    static pcl::PointCloud<pcl::PointXYZ> free_space_pcl;
+    static pcl::PointCloud<pcl::PointXYZ> obstacles_pcl;
+    static pcl::PointCloud<pcl::PointXYZ> limits_pcl;
 
     pcl_conversions::toPCL(*scan, scan_pcl2);
     pcl::fromPCLPointCloud2(scan_pcl2, scan_pcl);
 
     this->local_planning_->groundSegmentation(scan_pcl, this->lidar_config_, this->filter_config_, scan_pcl_filt,
-                                              free_space_pcl);
+                                              obstacles_pcl, limits_pcl);
 
     pcl::toPCLPointCloud2(scan_pcl_filt, scan_pcl2);
     pcl_conversions::fromPCL(scan_pcl2, scan_filt);
 
     scan_pcl_filt.header.frame_id = this->frame_lidar_;
-    free_space_pcl.header.frame_id = this->frame_lidar_;
+    obstacles_pcl.header.frame_id = this->frame_lidar_;
+    limits_pcl.header.frame_id = this->frame_lidar_;
     this->lidar_publisher_.publish(scan_pcl_filt);
-    this->obstacles_publisher_.publish(free_space_pcl);
+    this->obstacles_publisher_.publish(obstacles_pcl);
+    this->limits_publisher_.publish(limits_pcl);
     //////////////////////////////////////////////////
 
     end1 = ros::Time::now().toSec();
@@ -368,6 +373,8 @@ void LocalPlanningAlgNode::node_config_update(Config &config, uint32_t level)
   this->filter_config_.c = this->config_.c;
 
   this->filter_config_.variance = this->config_.variance;
+  this->filter_config_.radious = this->config_.radious;
+  this->filter_config_.var_factor = this->config_.var_factor;
 
   this->alg_.unlock();
 }
