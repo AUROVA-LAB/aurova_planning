@@ -70,6 +70,7 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   // [init publishers]
   this->lidar_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/velodyne_obstacles", 1);
   this->obstacles_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_obstacles", 1);
+  this->local_goal_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/local_goal", 1);
   this->limits_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_limits", 1);
   this->plot_publisher_ = it_.advertise("/plot_pf_map", 1);
   this->ackermann_publisher_ = this->public_node_handle_.advertise < ackermann_msgs::AckermannDrive
@@ -140,7 +141,6 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
 
     //////////////////////////////////////////////////
     //// free-space perimeter calculation
-    sensor_msgs::PointCloud2 scan_filt;
     pcl::PCLPointCloud2 scan_pcl2;
     static pcl::PointCloud<pcl::PointXYZ> scan_pcl;
     static pcl::PointCloud<pcl::PointXYZ> scan_pcl_filt;
@@ -153,9 +153,6 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     this->local_planning_->groundSegmentation(scan_pcl, this->lidar_config_, this->filter_config_, scan_pcl_filt,
                                               obstacles_pcl, limits_pcl);
 
-    pcl::toPCLPointCloud2(scan_pcl_filt, scan_pcl2);
-    pcl_conversions::fromPCL(scan_pcl2, scan_filt);
-
     scan_pcl_filt.header.frame_id = this->frame_lidar_;
     obstacles_pcl.header.frame_id = this->frame_lidar_;
     limits_pcl.header.frame_id = this->frame_lidar_;
@@ -165,6 +162,19 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     //////////////////////////////////////////////////
 
     end1 = ros::Time::now().toSec();
+
+    //////////////////////////////////////////////////
+    //// local goal calculation
+    pcl::PointXYZ local_goal;
+    static pcl::PointCloud<pcl::PointXYZ> local_goal_plot;
+
+    this->local_planning_->localGoalCalculation(this->goal_lidar_, obstacles_pcl, limits_pcl, local_goal);
+
+    local_goal_plot.points.clear();
+    local_goal_plot.points.push_back(local_goal);
+    local_goal_plot.header.frame_id = this->frame_lidar_;
+    this->local_goal_publisher_.publish(local_goal_plot);
+    //////////////////////////////////////////////////
 
     //////////////////////////////////////////////////
     //// potential forces map calculation
@@ -305,6 +315,7 @@ void LocalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseWithCovariance
 
   this->goal_lidar_.x = goal_lidar.point.x;
   this->goal_lidar_.y = goal_lidar.point.y;
+  this->goal_lidar_.z = 0;
 
   this->goal_received_ = true;
 

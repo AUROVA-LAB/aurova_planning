@@ -50,7 +50,7 @@ private:
   std_msgs::Float32 back_rec_;
   std_msgs::Float32 ford_rec_;
   CvFont font_;
-  cv::Point2f goal_lidar_;
+  pcl::PointXYZ goal_lidar_;
   std::string frame_id_;
   std::string frame_lidar_;
   tf::TransformListener listener_;
@@ -67,6 +67,7 @@ private:
   // [publisher attributes]
   ros::Publisher lidar_publisher_;
   ros::Publisher obstacles_publisher_;
+  ros::Publisher local_goal_publisher_;
   ros::Publisher limits_publisher_;
   ros::Publisher ackermann_publisher_;
   ros::Publisher ackermann_publisher2_;
