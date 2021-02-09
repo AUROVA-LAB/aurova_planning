@@ -45,18 +45,16 @@ private:
   LocalPlanning *local_planning_;
   local_planning_lib::SensorConfiguration lidar_config_;
   local_planning_lib::FilteringConfiguration filter_config_;
+  local_planning_lib::AckermannControl ackermann_control_;
+  local_planning_lib::Pose2D base_in_lidarf_;
   ackermann_msgs::AckermannDriveStamped ackermann_state_;
   ackermann_msgs::AckermannDriveStamped ackermann_state2_;
   std_msgs::Float32 back_rec_;
   std_msgs::Float32 ford_rec_;
-  CvFont font_;
   pcl::PointXYZ goal_lidar_;
   std::string frame_id_;
   std::string frame_lidar_;
   tf::TransformListener listener_;
-  PFConfig pf_config_;
-  CtrlConfig ctrl_config_;
-  Pose2D base_in_lidarf_;
   std::string out_path_map_;
   bool save_map_;
   bool goal_received_;
@@ -65,15 +63,16 @@ private:
   float kp_;
 
   // [publisher attributes]
-  ros::Publisher lidar_publisher_;
   ros::Publisher obstacles_publisher_;
-  ros::Publisher local_goal_publisher_;
+  ros::Publisher ground_publisher_;
   ros::Publisher limits_publisher_;
+  ros::Publisher local_goal_publisher_;
+  ros::Publisher collision_publisher_;
+
   ros::Publisher ackermann_publisher_;
   ros::Publisher ackermann_publisher2_;
   ros::Publisher back_rec_publisher_;
   ros::Publisher ford_rec_publisher_;
-  image_transport::Publisher plot_publisher_;
 
   // [subscriber attributes]
   ros::Subscriber lidar_subscriber_;

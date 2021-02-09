@@ -32,54 +32,10 @@
 #include "std_msgs/Float32.h"
 #include <pcl_ros/point_cloud.h>
 #include <planning/local_planning.h>
-#include <image_transport/image_transport.h>
-#include <opencv/cv.h>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
-#include <cv_bridge/cv_bridge.h>
 #include <tf/transform_listener.h>
 #include <tf/tf.h>
 
-#define INVALID_PIXEL 0.123
-#define EMPTY_PIXEL 0.0
-#define MAX_PIXEL 255.0
 #define PI 3.141592
-
-struct PFConfig
-{
-  int threshold_grad;
-  int scale;
-  int offset_x;
-  int offset_y; 
-  int size_x;
-  int size_y;
-  float wr;
-  float wa;
-  float ar;
-  float aa;
-  int min_pt_x;
-  int min_pt_y;
-  float rad_min;
-  float rad_max;
-};
-
-struct CtrlConfig
-{
-  float max_angle;
-  float delta_angle;
-  float delta_time;
-  float v_length;
-  float v_min;
-  float v_max;
-  float margin_sec;
-};
-
-struct Pose2D
-{
-  float x;
-  float y;
-  float yaw;
-};
 
 //include local_planning_alg main library
 
@@ -180,37 +136,6 @@ class LocalPlanningAlgorithm
     *
     */
     ~LocalPlanningAlgorithm(void);
-    
-    void potentialForcesMap(pcl::PointCloud<pcl::PointXYZ> free_space, 
-                            cv::Point2f goal_lidar,
-                            PFConfig& pf_config,
-                            vector<vector<cv::Point> >& contour,
-                            cv::Mat& pf_map);
-                            
-    void findTransitableAreas(cv::Mat pf_map, 
-                              vector<vector<cv::Point> > contour,
-                              cv::Point2f goal_lidar, 
-                              PFConfig pf_config, 
-                              cv::Mat& roads_map);
-                              
-   
-   void findLocalGoal(pcl::PointCloud<pcl::PointXYZ> free_space, 
-                      cv::Point2f goal_lidar,
-                      PFConfig& pf_config,
-                      vector<vector<cv::Point> >& contour,
-                      int& radious,
-                      cv::Mat& plot_img,
-                      vector<cv::Point2d>& goal_candidates,
-                      cv::Point2d& local_goal);
-                      
-   void findControlAction(pcl::PointCloud<pcl::PointXYZ> free_space,
-                          cv::Point2d local_goal,
-                          Pose2D base_pose, cv::Point2f goal_lidar,
-                          PFConfig pf_config,
-                          CtrlConfig ctrl_config,
-                          vector<vector<cv::Point> > contour,
-                          ackermann_msgs::AckermannDriveStamped& ackermann_state,
-                          cv::Mat& plot_img);
 };
 
 #endif

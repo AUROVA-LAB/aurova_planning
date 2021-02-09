@@ -6,31 +6,16 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   //init class attributes if necessary
   this->loop_rate_ = 25; //in [Hz]
 
-  cvInitFont(&this->font_, CV_FONT_HERSHEY_SIMPLEX, 1.0, 1.0);
-  image_transport::ImageTransport it_(this->public_node_handle_);
-
   this->local_planning_ = new LocalPlanning();
   this->goal_received_ = false;
   this->ctrl_received_ = false;
 
-  this->public_node_handle_.getParam("/ackermann_control/max_angle", this->ctrl_config_.max_angle);
-  this->public_node_handle_.getParam("/ackermann_control/delta_angle", this->ctrl_config_.delta_angle);
-  this->public_node_handle_.getParam("/ackermann_control/delta_time", this->ctrl_config_.delta_time);
-  this->public_node_handle_.getParam("/ackermann_control/v_length", this->ctrl_config_.v_length);
-  this->public_node_handle_.getParam("/ackermann_control/v_min", this->ctrl_config_.v_min);
-  this->public_node_handle_.getParam("/ackermann_control/v_max", this->ctrl_config_.v_max);
-  this->public_node_handle_.getParam("/ackermann_control/margin_sec", this->ctrl_config_.margin_sec);
-  this->public_node_handle_.getParam("/ackermann_control/flag_prop", this->flag_prop_);
-  this->public_node_handle_.getParam("/ackermann_control/kp", this->kp_);
-
-  this->public_node_handle_.getParam("/pf_configuration/threshold_grad", this->pf_config_.threshold_grad);
-  this->public_node_handle_.getParam("/pf_configuration/scale", this->pf_config_.scale);
-  this->public_node_handle_.getParam("/pf_configuration/wr", this->pf_config_.wr);
-  this->public_node_handle_.getParam("/pf_configuration/ar", this->pf_config_.ar);
-  this->public_node_handle_.getParam("/pf_configuration/wa", this->pf_config_.wa);
-  this->public_node_handle_.getParam("/pf_configuration/aa", this->pf_config_.aa);
-  this->public_node_handle_.getParam("/pf_configuration/rad_min", this->pf_config_.rad_min);
-  this->public_node_handle_.getParam("/pf_configuration/rad_max", this->pf_config_.rad_max);
+  this->public_node_handle_.getParam("/ackermann_control/max_angle", this->ackermann_control_.max_angle);
+  this->public_node_handle_.getParam("/ackermann_control/delta_angle", this->ackermann_control_.delta_angle);
+  this->public_node_handle_.getParam("/ackermann_control/v_min", this->ackermann_control_.v_min);
+  this->public_node_handle_.getParam("/ackermann_control/v_max", this->ackermann_control_.v_max);
+  this->public_node_handle_.getParam("/ackermann_control/v_length", this->ackermann_control_.v_length);
+  this->public_node_handle_.getParam("/ackermann_control/delta_time", this->ackermann_control_.delta_time);
 
   this->public_node_handle_.getParam("/local_planning/frame_id", this->frame_id_);
   this->public_node_handle_.getParam("/local_planning/frame_lidar", this->frame_lidar_);
@@ -68,11 +53,12 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
           / lidar_config_.grid_elevation_angular_resolution;
 
   // [init publishers]
-  this->lidar_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/velodyne_obstacles", 1);
-  this->obstacles_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_obstacles", 1);
-  this->local_goal_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/local_goal", 1);
+  this->obstacles_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/velodyne_obstacles", 1);
+  this->ground_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_obstacles", 1);
   this->limits_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_limits", 1);
-  this->plot_publisher_ = it_.advertise("/plot_pf_map", 1);
+  this->local_goal_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/local_goal", 1);
+  this->collision_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/collision_risk", 1);
+
   this->ackermann_publisher_ = this->public_node_handle_.advertise < ackermann_msgs::AckermannDrive
       > ("/ackermann_cmd", 1);
   this->ackermann_publisher2_ = this->public_node_handle_.advertise < ackermann_msgs::AckermannDriveStamped
@@ -131,10 +117,9 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
 {
   this->alg_.lock();
 
-  double ini, end, ini1, end1, ini2, end2;
+  double ini, end;
 
   ini = ros::Time::now().toSec();
-  ini1 = ros::Time::now().toSec();
 
   if (this->goal_received_)
   {
@@ -156,12 +141,10 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     scan_pcl_filt.header.frame_id = this->frame_lidar_;
     obstacles_pcl.header.frame_id = this->frame_lidar_;
     limits_pcl.header.frame_id = this->frame_lidar_;
-    this->lidar_publisher_.publish(scan_pcl_filt);
-    this->obstacles_publisher_.publish(obstacles_pcl);
+    this->obstacles_publisher_.publish(scan_pcl_filt);
+    this->ground_publisher_.publish(obstacles_pcl);
     this->limits_publisher_.publish(limits_pcl);
     //////////////////////////////////////////////////
-
-    end1 = ros::Time::now().toSec();
 
     //////////////////////////////////////////////////
     //// local goal calculation
@@ -177,113 +160,21 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     //////////////////////////////////////////////////
 
     //////////////////////////////////////////////////
-    //// potential forces map calculation
-    // size map calculation
-    /*float max_x = 0.0, min_x = 0.0, max_y = 0.0, min_y = 0.0;
-     int max_x_int, min_x_int, max_y_int, min_y_int;
-     for (int i = 0; i < free_space_pcl.points.size(); ++i)
-     {
-     if (free_space_pcl.points[i].x > max_x)
-     {
-     max_x = free_space_pcl.points[i].x;
-     }
-     if (free_space_pcl.points[i].x < min_x)
-     {
-     min_x = free_space_pcl.points[i].x;
-     }
-     if (free_space_pcl.points[i].y > max_y)
-     {
-     max_y = free_space_pcl.points[i].y;
-     }
-     if (free_space_pcl.points[i].y < min_y)
-     {
-     min_y = free_space_pcl.points[i].y;
-     }
-     }
-     max_x_int = (int)(max_x * this->pf_config_.scale);
-     min_x_int = (int)(min_x * this->pf_config_.scale);
-     max_y_int = (int)(max_y * this->pf_config_.scale);
-     min_y_int = (int)(min_y * this->pf_config_.scale);
-     this->pf_config_.size_x = max_x_int - min_x_int + 1;
-     this->pf_config_.size_y = max_y_int - min_y_int + 1;
-     this->pf_config_.offset_x = -min_x_int;
-     this->pf_config_.offset_y = -min_y_int;
+    //// control action calculation
+    static pcl::PointCloud<pcl::PointXYZ> collision_risk;
 
-     //vector<vector<cv::Point> > contour_plt;
-     //cv::Mat pf_map(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
-     //cv::Mat pf_map_plt(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
-     //this->alg_.potentialForcesMap(free_space_pcl, this->goal_lidar_, this->pf_config_, contour_plt, pf_map);
-     //cv::applyColorMap(pf_map, pf_map_plt, cv::COLORMAP_JET);*/
-    //////////////////////////////////////////////////
-    //////////////////////////////////////////////////
-    //// ROAD MAP CALCULATION
-    //cv::Mat roads_map(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
-    //cv::Mat roads_map_plot(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC3, EMPTY_PIXEL);
-    //this->alg_.findTransitableAreas(pf_map, contour_plt, this->goal_lidar_, this->pf_config_, roads_map);
-    //cv::applyColorMap(roads_map, roads_map_plot, cv::COLORMAP_JET);
-    //////////////////////////////////////////////////
-    ini2 = ros::Time::now().toSec();
+    this->local_planning_->controlActionCalculation(local_goal, this->base_in_lidarf_, obstacles_pcl, collision_risk,
+                                                    this->ackermann_control_);
 
+    collision_risk.header.frame_id = "base_link";//this->frame_lidar_;
+    this->collision_publisher_.publish(collision_risk);
     //////////////////////////////////////////////////
-    //// NAIVE GEODESIC PATH CALCULATION
-    /*cv::Mat plot_img(this->pf_config_.size_y, this->pf_config_.size_x, CV_8UC1, EMPTY_PIXEL);
-     vector < vector<cv::Point> > contour;
-     vector < cv::Point2d > goal_candidates;
-     cv::Point2d local_goal;
-     int radious;
-     this->alg_.findLocalGoal(free_space_pcl, this->goal_lidar_, this->pf_config_, contour, radious, plot_img,
-     goal_candidates, local_goal);
 
-     //plot
-     cv::Point2d uv, uv2;
-     uv.x = this->pf_config_.offset_x;
-     uv.y = this->pf_config_.offset_y;
-     cv::circle(plot_img, uv, radious, CV_RGB(MAX_PIXEL, EMPTY_PIXEL, EMPTY_PIXEL), 1);
-     for (int i = 0; i < goal_candidates.size(); i++)
-     {
-     cv::circle(plot_img, goal_candidates[i], 1, CV_RGB(EMPTY_PIXEL, EMPTY_PIXEL, MAX_PIXEL), -1);
-     }
-     cv::circle(plot_img, local_goal, 2, CV_RGB(EMPTY_PIXEL, MAX_PIXEL, EMPTY_PIXEL), -1);*/
-    //////////////////////////////////////////////////
-    //////////////////////////////////////////////////
-    //// CONTROL ACTIONS
-    /*static float speed_prev = 0.0;
-     this->alg_.findControlAction(free_space_pcl, local_goal, this->base_in_lidarf_, this->goal_lidar_, this->pf_config_,
-     this->ctrl_config_, contour, this->ackermann_state_, plot_img);
-
-     //proportional filtration
-     if (this->flag_prop_)
-     {
-     this->ackermann_state_.drive.speed = speed_prev + (this->ackermann_state_.drive.speed - speed_prev) * this->kp_;
-     speed_prev = this->ackermann_state_.drive.speed;
-     }
-     this->ackermann_state2_ = this->ackermann_state_;
-     this->ackermann_state2_.drive.steering_angle = this->ackermann_state_.drive.steering_angle * 180.0 / PI;
-     this->ctrl_received_ = true;*/
-    //////////////////////////////////////////////////
-    ///////////////////////////////////////////////////
-    //// PLOT AND FILE OUTPUT
-    /*std_msgs::Header header; // empty header
-     header.stamp = ros::Time::now(); // time
-     cv_bridge::CvImage output_bridge;
-     output_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, plot_img);
-     this->plot_publisher_.publish(output_bridge.toImageMsg());
-     if (this->save_map_)
-     {
-     static int cont = 0;
-     std::ostringstream out_path_map;
-     out_path_map << this->out_path_map_ << cont << ".jpg";
-     cv::imwrite(out_path_map.str(), plot_img);
-     cont++;
-     }*/
-    ///////////////////////////////////////////////////
   }
 
   // loop time
   end = ros::Time::now().toSec();
-  end2 = ros::Time::now().toSec();
-  ROS_INFO("duration naive: %f", (end1 - ini1) + (end2 - ini2));
-  ROS_INFO("duration total (to plot): %f", end - ini);
+  ROS_INFO("duration total: %f", end - ini);
 
   this->alg_.unlock();
 }
@@ -359,7 +250,7 @@ void LocalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseWithCovariance
                         orient_lidar.quaternion.w);
   tf::Matrix3x3 m_pose(q_pose);
   m_pose.getRPY(roll, pitch, yaw);
-  yaw = (yaw * 180.0) / PI;
+  //yaw = (yaw * 180.0) / PI;
 
   this->base_in_lidarf_.x = pose_lidar.point.x;
   this->base_in_lidarf_.y = pose_lidar.point.y;
