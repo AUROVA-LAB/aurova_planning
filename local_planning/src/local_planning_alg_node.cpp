@@ -16,6 +16,10 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->public_node_handle_.getParam("/ackermann_control/v_max", this->ackermann_control_.v_max);
   this->public_node_handle_.getParam("/ackermann_control/v_length", this->ackermann_control_.v_length);
   this->public_node_handle_.getParam("/ackermann_control/delta_time", this->ackermann_control_.delta_time);
+  this->public_node_handle_.getParam("/ackermann_control/margin_front", this->ackermann_control_.margin_front);
+  this->public_node_handle_.getParam("/ackermann_control/margin_rear", this->ackermann_control_.margin_rear);
+  this->public_node_handle_.getParam("/ackermann_control/margin_left", this->ackermann_control_.margin_left);
+  this->public_node_handle_.getParam("/ackermann_control/margin_right", this->ackermann_control_.margin_right);
 
   this->public_node_handle_.getParam("/local_planning/frame_id", this->frame_id_);
   this->public_node_handle_.getParam("/local_planning/frame_lidar", this->frame_lidar_);
@@ -24,10 +28,6 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
 
   this->public_node_handle_.getParam("/filter_configuration/max_range", filter_config_.max_range);
   this->public_node_handle_.getParam("/filter_configuration/min_range", filter_config_.min_range);
-  this->public_node_handle_.getParam("/filter_configuration/min_dot_product_for_ground",
-                                     filter_config_.min_dot_product_for_ground);
-  this->public_node_handle_.getParam("/filter_configuration/max_ground_elevation",
-                                     filter_config_.max_ground_elevation_angle_change_in_degrees);
   this->public_node_handle_.getParam("/filter_configuration/a", filter_config_.a);
   this->public_node_handle_.getParam("/filter_configuration/b", filter_config_.b);
   this->public_node_handle_.getParam("/filter_configuration/c", filter_config_.c);
@@ -163,10 +163,10 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     //// control action calculation
     static pcl::PointCloud<pcl::PointXYZ> collision_risk;
 
-    this->local_planning_->controlActionCalculation(local_goal, this->base_in_lidarf_, obstacles_pcl, collision_risk,
+    this->local_planning_->controlActionCalculation(local_goal, this->base_in_lidarf_, scan_pcl_filt, collision_risk,
                                                     this->ackermann_control_);
 
-    collision_risk.header.frame_id = "base_link";//this->frame_lidar_;
+    collision_risk.header.frame_id = this->frame_lidar_;
     this->collision_publisher_.publish(collision_risk);
     //////////////////////////////////////////////////
 
