@@ -47,8 +47,8 @@ private:
   local_planning_lib::FilteringConfiguration filter_config_;
   local_planning_lib::AckermannControl ackermann_control_;
   local_planning_lib::Pose2D base_in_lidarf_;
-  ackermann_msgs::AckermannDriveStamped ackermann_state_;
-  ackermann_msgs::AckermannDriveStamped ackermann_state2_;
+  ackermann_msgs::AckermannDriveStamped ackermann_state_rad_;
+  ackermann_msgs::AckermannDriveStamped ackermann_state_deg_;
   std_msgs::Float32 back_rec_;
   std_msgs::Float32 ford_rec_;
   pcl::PointXYZ goal_lidar_;
@@ -59,7 +59,6 @@ private:
   bool save_map_;
   bool goal_received_;
   bool ctrl_received_;
-  bool flag_prop_;
   float kp_;
 
   // [publisher attributes]
@@ -69,8 +68,8 @@ private:
   ros::Publisher local_goal_publisher_;
   ros::Publisher collision_publisher_;
 
-  ros::Publisher ackermann_publisher_;
-  ros::Publisher ackermann_publisher2_;
+  ros::Publisher ackermann_rad_publisher_;
+  ros::Publisher ackermann_deg_publisher_;
   ros::Publisher back_rec_publisher_;
   ros::Publisher ford_rec_publisher_;
 

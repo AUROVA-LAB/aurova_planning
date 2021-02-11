@@ -20,6 +20,7 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->public_node_handle_.getParam("/ackermann_control/margin_rear", this->ackermann_control_.margin_rear);
   this->public_node_handle_.getParam("/ackermann_control/margin_left", this->ackermann_control_.margin_left);
   this->public_node_handle_.getParam("/ackermann_control/margin_right", this->ackermann_control_.margin_right);
+  this->public_node_handle_.getParam("/ackermann_control/kp", this->kp_);
 
   this->public_node_handle_.getParam("/local_planning/frame_id", this->frame_id_);
   this->public_node_handle_.getParam("/local_planning/frame_lidar", this->frame_lidar_);
@@ -59,9 +60,9 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->local_goal_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/local_goal", 1);
   this->collision_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/collision_risk", 1);
 
-  this->ackermann_publisher_ = this->public_node_handle_.advertise < ackermann_msgs::AckermannDrive
+  this->ackermann_rad_publisher_ = this->public_node_handle_.advertise < ackermann_msgs::AckermannDrive
       > ("/ackermann_cmd", 1);
-  this->ackermann_publisher2_ = this->public_node_handle_.advertise < ackermann_msgs::AckermannDriveStamped
+  this->ackermann_deg_publisher_ = this->public_node_handle_.advertise < ackermann_msgs::AckermannDriveStamped
       > ("/desired_ackermann_state", 1);
   this->ford_rec_publisher_ = this->public_node_handle_.advertise < std_msgs::Float32
       > ("/forward_recommended_velocity", 1);
@@ -107,8 +108,8 @@ void LocalPlanningAlgNode::mainNodeThread(void)
 
   if (this->ctrl_received_)
   {
-    this->ackermann_publisher_.publish(this->ackermann_state_.drive);
-    this->ackermann_publisher2_.publish(this->ackermann_state2_);
+    this->ackermann_rad_publisher_.publish(this->ackermann_state_rad_.drive);
+    this->ackermann_deg_publisher_.publish(this->ackermann_state_deg_);
   }
 }
 
@@ -168,6 +169,19 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
 
     collision_risk.header.frame_id = this->frame_lidar_;
     this->collision_publisher_.publish(collision_risk);
+
+    this->ackermann_state_rad_.drive.steering_angle = this->ackermann_control_.steering;
+    this->ackermann_state_rad_.drive.speed = this->ackermann_control_.velocity;
+
+    //proportional filtration
+    static float speed_prev = 0.0;
+    this->ackermann_state_rad_.drive.speed = speed_prev
+        + (this->ackermann_state_rad_.drive.speed - speed_prev) * this->kp_;
+    speed_prev = this->ackermann_state_rad_.drive.speed;
+
+    this->ackermann_state_deg_ = this->ackermann_state_rad_;
+    this->ackermann_state_deg_.drive.steering_angle = this->ackermann_state_rad_.drive.steering_angle * 180.0 / PI;
+    this->ctrl_received_ = true;
     //////////////////////////////////////////////////
 
   }
