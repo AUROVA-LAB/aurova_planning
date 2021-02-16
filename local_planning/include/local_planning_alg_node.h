@@ -67,6 +67,8 @@ private:
   ros::Publisher limits_publisher_;
   ros::Publisher local_goal_publisher_;
   ros::Publisher collision_publisher_;
+  ros::Publisher collision_actions_publisher_;
+  ros::Publisher free_actions_publisher_;
 
   ros::Publisher ackermann_rad_publisher_;
   ros::Publisher ackermann_deg_publisher_;

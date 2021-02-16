@@ -59,6 +59,8 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->limits_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_limits", 1);
   this->local_goal_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/local_goal", 1);
   this->collision_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/collision_risk", 1);
+  this->collision_actions_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/collision_actions", 1);
+  this->free_actions_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/free_actions", 1);
 
   this->ackermann_rad_publisher_ = this->public_node_handle_.advertise < ackermann_msgs::AckermannDrive
       > ("/ackermann_cmd", 1);
@@ -163,12 +165,18 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     //////////////////////////////////////////////////
     //// control action calculation
     static pcl::PointCloud<pcl::PointXYZ> collision_risk;
+    static pcl::PointCloud<pcl::PointXYZ> collision_actions;
+    static pcl::PointCloud<pcl::PointXYZ> free_actions;
 
     this->local_planning_->controlActionCalculation(local_goal, this->base_in_lidarf_, scan_pcl_filt, collision_risk,
-                                                    this->ackermann_control_);
+                                                    collision_actions, free_actions, this->ackermann_control_);
 
     collision_risk.header.frame_id = this->frame_lidar_;
+    collision_actions.header.frame_id = this->frame_lidar_;
+    free_actions.header.frame_id = this->frame_lidar_;
     this->collision_publisher_.publish(collision_risk);
+    this->collision_actions_publisher_.publish(collision_actions);
+    this->free_actions_publisher_.publish(free_actions);
 
     this->ackermann_state_rad_.drive.steering_angle = this->ackermann_control_.steering;
     this->ackermann_state_rad_.drive.speed = this->ackermann_control_.velocity;
