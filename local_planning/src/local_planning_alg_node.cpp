@@ -12,15 +12,21 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
 
   this->public_node_handle_.getParam("/ackermann_control/max_angle", this->ackermann_control_.max_angle);
   this->public_node_handle_.getParam("/ackermann_control/delta_angle", this->ackermann_control_.delta_angle);
+
+  this->public_node_handle_.getParam("/ackermann_control/v_length", this->ackermann_control_.v_length);
+
+  this->public_node_handle_.getParam("/ackermann_control/delta_time", this->ackermann_control_.delta_time);
+  this->public_node_handle_.getParam("/ackermann_control/max_time", this->ackermann_control_.max_time);
+  this->public_node_handle_.getParam("/ackermann_control/vel_action", this->ackermann_control_.vel_action);
+
   this->public_node_handle_.getParam("/ackermann_control/v_min", this->ackermann_control_.v_min);
   this->public_node_handle_.getParam("/ackermann_control/v_max", this->ackermann_control_.v_max);
-  this->public_node_handle_.getParam("/ackermann_control/v_length", this->ackermann_control_.v_length);
-  this->public_node_handle_.getParam("/ackermann_control/delta_time", this->ackermann_control_.delta_time);
+  this->public_node_handle_.getParam("/ackermann_control/kp", this->ackermann_control_.kp);
+
   this->public_node_handle_.getParam("/ackermann_control/margin_front", this->ackermann_control_.margin_front);
   this->public_node_handle_.getParam("/ackermann_control/margin_rear", this->ackermann_control_.margin_rear);
   this->public_node_handle_.getParam("/ackermann_control/margin_left", this->ackermann_control_.margin_left);
   this->public_node_handle_.getParam("/ackermann_control/margin_right", this->ackermann_control_.margin_right);
-  this->public_node_handle_.getParam("/ackermann_control/kp", this->kp_);
 
   this->public_node_handle_.getParam("/local_planning/frame_id", this->frame_id_);
   this->public_node_handle_.getParam("/local_planning/frame_lidar", this->frame_lidar_);
@@ -59,7 +65,8 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->limits_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_limits", 1);
   this->local_goal_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/local_goal", 1);
   this->collision_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/collision_risk", 1);
-  this->collision_actions_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/collision_actions", 1);
+  this->collision_actions_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2
+      > ("/collision_actions", 1);
   this->free_actions_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/free_actions", 1);
 
   this->ackermann_rad_publisher_ = this->public_node_handle_.advertise < ackermann_msgs::AckermannDrive
@@ -184,7 +191,7 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     //proportional filtration
     static float speed_prev = 0.0;
     this->ackermann_state_rad_.drive.speed = speed_prev
-        + (this->ackermann_state_rad_.drive.speed - speed_prev) * this->kp_;
+        + (this->ackermann_state_rad_.drive.speed - speed_prev) * this->ackermann_control_.kp;
     speed_prev = this->ackermann_state_rad_.drive.speed;
 
     this->ackermann_state_deg_ = this->ackermann_state_rad_;
