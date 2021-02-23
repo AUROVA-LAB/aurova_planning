@@ -29,6 +29,9 @@
 #include "global_planning_alg.h"
 
 #define PI 3.141592
+#define MODE_PATH 1
+#define MODE_LOOP 2
+#define MODE_BYPASS 3
 
 // [publisher subscriber headers]
 
@@ -46,8 +49,9 @@ private:
 
   bool flag_pose_;
   bool flag_goal_;
-  bool flag_bypass_;
+  int operation_mode_;
   int vectors_size_;
+  float stop_code_;
   double rad_reached_;
   int index_path_;
   struct Pose pose_;
@@ -64,6 +68,7 @@ private:
   tf::TransformBroadcaster broadcaster_;
   tf::TransformListener listener_;
   Graph *graph_;
+  std::vector<double> closed_loop_;
 
   // [publisher attributes]
   ros::Publisher marker_pub_;

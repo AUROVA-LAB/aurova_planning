@@ -10,6 +10,8 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->goal_received_ = false;
   this->ctrl_received_ = false;
 
+  this->public_node_handle_.getParam("/global_planning/stop_code", this->stop_code_);
+
   this->public_node_handle_.getParam("/ackermann_control/max_angle", this->ackermann_control_.max_angle);
   this->public_node_handle_.getParam("/ackermann_control/delta_angle", this->ackermann_control_.delta_angle);
   this->public_node_handle_.getParam("/ackermann_control/v_length", this->ackermann_control_.v_length);
@@ -182,6 +184,15 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     this->ackermann_state_rad_.drive.steering_angle = this->ackermann_control_.steering;
     this->ackermann_state_rad_.drive.speed = this->ackermann_control_.velocity;
 
+    //check is final position
+    if (this->goal_lidar_.z == this->stop_code_)
+    {
+      this->ackermann_state_rad_.drive.speed = 0.0;
+      this->ackermann_state_deg_.drive.speed = 0.0;
+      this->ackermann_state_rad_.drive.steering_angle = 0.0;
+      this->ackermann_state_deg_.drive.steering_angle = 0.0;
+    }
+
     //proportional filtration
     static float speed_prev = 0.0;
     this->ackermann_state_rad_.drive.speed = speed_prev
@@ -229,7 +240,7 @@ void LocalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseWithCovariance
 
   this->goal_lidar_.x = goal_lidar.point.x;
   this->goal_lidar_.y = goal_lidar.point.y;
-  this->goal_lidar_.z = 0;
+  this->goal_lidar_.z = goal_msg->pose.pose.position.z;
 
   this->goal_received_ = true;
 

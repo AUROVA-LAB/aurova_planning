@@ -60,6 +60,7 @@ private:
   bool goal_received_;
   bool ctrl_received_;
   bool is_reconfig_;
+  float stop_code_;
 
   // [publisher attributes]
   ros::Publisher obstacles_publisher_;
