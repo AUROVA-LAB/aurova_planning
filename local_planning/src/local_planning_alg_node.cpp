@@ -12,21 +12,13 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
 
   this->public_node_handle_.getParam("/ackermann_control/max_angle", this->ackermann_control_.max_angle);
   this->public_node_handle_.getParam("/ackermann_control/delta_angle", this->ackermann_control_.delta_angle);
-
   this->public_node_handle_.getParam("/ackermann_control/v_length", this->ackermann_control_.v_length);
-
-  this->public_node_handle_.getParam("/ackermann_control/delta_time", this->ackermann_control_.delta_time);
-  this->public_node_handle_.getParam("/ackermann_control/max_time", this->ackermann_control_.max_time);
-  this->public_node_handle_.getParam("/ackermann_control/vel_action", this->ackermann_control_.vel_action);
-
+  this->public_node_handle_.getParam("/ackermann_control/delta_arc", this->ackermann_control_.delta_arc);
+  this->public_node_handle_.getParam("/ackermann_control/max_arc", this->ackermann_control_.max_arc);
   this->public_node_handle_.getParam("/ackermann_control/v_min", this->ackermann_control_.v_min);
   this->public_node_handle_.getParam("/ackermann_control/v_max", this->ackermann_control_.v_max);
   this->public_node_handle_.getParam("/ackermann_control/kp", this->ackermann_control_.kp);
-
-  this->public_node_handle_.getParam("/ackermann_control/margin_front", this->ackermann_control_.margin_front);
-  this->public_node_handle_.getParam("/ackermann_control/margin_rear", this->ackermann_control_.margin_rear);
-  this->public_node_handle_.getParam("/ackermann_control/margin_left", this->ackermann_control_.margin_left);
-  this->public_node_handle_.getParam("/ackermann_control/margin_right", this->ackermann_control_.margin_right);
+  this->public_node_handle_.getParam("/ackermann_control/margin", this->ackermann_control_.margin);
 
   this->public_node_handle_.getParam("/local_planning/frame_id", this->frame_id_);
   this->public_node_handle_.getParam("/local_planning/frame_lidar", this->frame_lidar_);
@@ -41,12 +33,14 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->public_node_handle_.getParam("/filter_configuration/variance", filter_config_.variance);
   this->public_node_handle_.getParam("/filter_configuration/radious", filter_config_.radious);
   this->public_node_handle_.getParam("/filter_configuration/var_factor", filter_config_.var_factor);
+  this->public_node_handle_.getParam("/filter_configuration/ground_in_sim", filter_config_.ground_in_sim);
+  this->public_node_handle_.getParam("/filter_configuration/is_simulation", filter_config_.is_simulation);
+  this->public_node_handle_.getParam("/filter_configuration/is_reconfig", this->is_reconfig_);
 
   this->public_node_handle_.getParam("/lidar_configuration/max_elevation_angle", lidar_config_.max_elevation_angle);
   this->public_node_handle_.getParam("/lidar_configuration/min_elevation_angle", lidar_config_.min_elevation_angle);
   this->public_node_handle_.getParam("/lidar_configuration/max_azimuth_angle", lidar_config_.max_azimuth_angle);
   this->public_node_handle_.getParam("/lidar_configuration/min_azimuth_angle", lidar_config_.min_azimuth_angle);
-  this->public_node_handle_.getParam("/lidar_configuration/sensor_height", lidar_config_.sensor_height);
   this->public_node_handle_.getParam("/lidar_configuration/grid_azimuth_angular_resolution",
                                      lidar_config_.grid_azimuth_angular_resolution);
   this->public_node_handle_.getParam("/lidar_configuration/grid_elevation_angular_resolution",
@@ -135,7 +129,7 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
   {
 
     //////////////////////////////////////////////////
-    //// free-space perimeter calculation
+    //// 1) free-space perimeter calculation
     pcl::PCLPointCloud2 scan_pcl2;
     static pcl::PointCloud<pcl::PointXYZ> scan_pcl;
     static pcl::PointCloud<pcl::PointXYZ> scan_pcl_filt;
@@ -157,7 +151,7 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     //////////////////////////////////////////////////
 
     //////////////////////////////////////////////////
-    //// local goal calculation
+    //// 2) local goal calculation
     pcl::PointXYZ local_goal;
     static pcl::PointCloud<pcl::PointXYZ> local_goal_plot;
 
@@ -170,7 +164,7 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     //////////////////////////////////////////////////
 
     //////////////////////////////////////////////////
-    //// control action calculation
+    //// 3) control action calculation
     static pcl::PointCloud<pcl::PointXYZ> collision_risk;
     static pcl::PointCloud<pcl::PointXYZ> collision_actions;
     static pcl::PointCloud<pcl::PointXYZ> free_actions;
@@ -299,13 +293,18 @@ void LocalPlanningAlgNode::node_config_update(Config &config, uint32_t level)
 {
   this->alg_.lock();
   this->config_ = config;
-  this->filter_config_.a = this->config_.a;
-  this->filter_config_.b = this->config_.b;
-  this->filter_config_.c = this->config_.c;
 
-  this->filter_config_.variance = this->config_.variance;
-  this->filter_config_.radious = this->config_.radious;
-  this->filter_config_.var_factor = this->config_.var_factor;
+  if (this->is_reconfig_)
+  {
+    this->filter_config_.a = this->config_.a;
+    this->filter_config_.b = this->config_.b;
+    this->filter_config_.c = this->config_.c;
+
+    this->filter_config_.variance = this->config_.variance;
+    this->filter_config_.radious = this->config_.radious;
+    this->filter_config_.var_factor = this->config_.var_factor;
+
+  }
 
   this->alg_.unlock();
 }

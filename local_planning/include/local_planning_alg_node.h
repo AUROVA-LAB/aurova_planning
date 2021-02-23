@@ -59,6 +59,7 @@ private:
   bool save_map_;
   bool goal_received_;
   bool ctrl_received_;
+  bool is_reconfig_;
 
   // [publisher attributes]
   ros::Publisher obstacles_publisher_;
