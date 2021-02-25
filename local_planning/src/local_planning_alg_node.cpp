@@ -154,15 +154,16 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
 
     //////////////////////////////////////////////////
     //// 2) local goal calculation
-    pcl::PointXYZ local_goal;
-    static pcl::PointCloud<pcl::PointXYZ> local_goal_plot;
+    static pcl::PointCloud<pcl::PointXYZ> local_path;
 
-    this->local_planning_->localGoalCalculation(this->goal_lidar_, obstacles_pcl, limits_pcl, local_goal);
+    this->local_planning_->localGoalCalculation(this->goal_lidar_, obstacles_pcl, limits_pcl, local_path);
 
-    local_goal_plot.points.clear();
-    local_goal_plot.points.push_back(local_goal);
-    local_goal_plot.header.frame_id = this->frame_lidar_;
-    this->local_goal_publisher_.publish(local_goal_plot);
+    //local_path.points.clear();
+    //local_path.points.push_back(local_goal);
+    local_path.points[local_path.points.size()-2].x = local_path.points[local_path.points.size()-2].x + this->base_in_lidarf_.x;
+    local_path.points[local_path.points.size()-2].y = local_path.points[local_path.points.size()-2].y + this->base_in_lidarf_.y;
+    local_path.header.frame_id = this->frame_lidar_;
+    this->local_goal_publisher_.publish(local_path);
     //////////////////////////////////////////////////
 
     //////////////////////////////////////////////////
@@ -171,7 +172,7 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     static pcl::PointCloud<pcl::PointXYZ> collision_actions;
     static pcl::PointCloud<pcl::PointXYZ> free_actions;
 
-    this->local_planning_->controlActionCalculation(local_goal, this->base_in_lidarf_, scan_pcl_filt, collision_risk,
+    this->local_planning_->controlActionCalculation(local_path.points[local_path.points.size()-2], this->base_in_lidarf_, scan_pcl_filt, collision_risk,
                                                     collision_actions, free_actions, this->ackermann_control_);
 
     collision_risk.header.frame_id = this->frame_lidar_;
