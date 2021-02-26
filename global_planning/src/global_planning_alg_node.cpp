@@ -179,7 +179,7 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
 
       if (this->flag_pose_ && this->flag_goal_)
       {
-        if (initiation)
+        if (!initiation)
         {
           float min_dist = 100000;
 
