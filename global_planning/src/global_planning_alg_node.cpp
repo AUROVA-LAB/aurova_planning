@@ -15,6 +15,8 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
   this->flag_pose_ = false;
   this->flag_goal_ = false;
   this->public_node_handle_.getParam("/global_planning/url_path", url_path);
+  this->public_node_handle_.getParam("/global_planning/url_file_out", this->url_file_out_);
+  this->public_node_handle_.getParam("/global_planning/save_data", this->save_data_);
   this->public_node_handle_.getParam("/global_planning/frame_id", this->frame_id_);
   this->public_node_handle_.getParam("/global_planning/var_x", var_x);
   this->public_node_handle_.getParam("/global_planning/var_y", var_y);
@@ -416,8 +418,8 @@ void GlobalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseStamped::Cons
 {
   this->alg_.lock();
 
-///////////////////////////////////////////////////////////
-///// TRANSFORM TO TF FARME
+  ///////////////////////////////////////////////////////////
+  ///// TRANSFORM TO TF FARME
   geometry_msgs::PointStamped node_tf;
   geometry_msgs::PointStamped node_utm;
   node_tf.header.frame_id = this->frame_id_;
@@ -557,6 +559,8 @@ int GlobalPlanningAlgNode::parseNodesToRosMarker(visualization_msgs::MarkerArray
   marker.lifetime = ros::Duration();
   text.lifetime = ros::Duration();
 
+  std::ostringstream out_nodes; // File out stream
+
   geometry_msgs::PointStamped node_tf;
   geometry_msgs::PointStamped node_utm;
   node_utm.header.frame_id = "utm";
@@ -602,6 +606,21 @@ int GlobalPlanningAlgNode::parseNodesToRosMarker(visualization_msgs::MarkerArray
     marker_array.markers.push_back(marker);
     marker_array.markers.push_back(text);
 
+    if (this->save_data_)
+      out_nodes << this->st_nodes_[i].id << ", " << node_tf.point.x << ", " << node_tf.point.y << "\n";
+
+  }
+
+  if (this->save_data_)
+  {
+    std::ostringstream out_nodes_path;
+    std::ofstream file_nodes;
+
+    out_nodes_path << this->url_file_out_ << "nodes.csv";
+
+    file_nodes.open(out_nodes_path.str().c_str(), std::ofstream::trunc);
+    file_nodes << out_nodes.str();
+    file_nodes.close();
   }
 
   return 0;
@@ -708,6 +727,8 @@ int GlobalPlanningAlgNode::parseLinksToRosMarker(visualization_msgs::MarkerArray
 
   marker.lifetime = ros::Duration();
 
+  std::ostringstream out_links; // File out stream
+
   geometry_msgs::PointStamped node_tf;
   geometry_msgs::PointStamped node_utm;
   node_utm.header.frame_id = "utm";
@@ -741,6 +762,9 @@ int GlobalPlanningAlgNode::parseLinksToRosMarker(visualization_msgs::MarkerArray
 
       marker.points.push_back(point);
 
+      if (this->save_data_)
+        out_links << this->st_nodes_[i].id << ", " << node_tf.point.x << ", " << node_tf.point.y;
+
       int id_link = this->st_nodes_[i].nodesConnected[j];
       node_utm.point.x = this->st_nodes_[id_link].coordinates[0];
       node_utm.point.y = this->st_nodes_[id_link].coordinates[1];
@@ -760,9 +784,23 @@ int GlobalPlanningAlgNode::parseLinksToRosMarker(visualization_msgs::MarkerArray
       point.z = 0.0;
 
       marker.points.push_back(point);
+
+      if (this->save_data_)
+        out_links << ", " << id_link << ", " << node_tf.point.x << ", " << node_tf.point.y << "\n";
     }
     marker_array.markers.push_back(marker);
+  }
 
+  if (this->save_data_)
+  {
+    std::ostringstream out_links_path;
+    std::ofstream file_links;
+
+    out_links_path << this->url_file_out_ << "links.csv";
+
+    file_links.open(out_links_path.str().c_str(), std::ofstream::trunc);
+    file_links << out_links.str();
+    file_links.close();
   }
 
   return 0;

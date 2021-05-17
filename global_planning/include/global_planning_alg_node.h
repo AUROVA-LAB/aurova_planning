@@ -49,6 +49,8 @@ private:
 
   bool flag_pose_;
   bool flag_goal_;
+  bool save_data_;
+  std::string url_file_out_;
   int operation_mode_;
   int vectors_size_;
   float stop_code_;

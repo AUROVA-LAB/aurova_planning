@@ -35,6 +35,8 @@
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_listener.h>
 #include <tf/tf.h>
+#include <iostream>
+#include <fstream>
 
 //include global_planning_alg main library
 
