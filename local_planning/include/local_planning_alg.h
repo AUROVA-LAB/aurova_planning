@@ -34,6 +34,8 @@
 #include <planning/local_planning.h>
 #include <tf/transform_listener.h>
 #include <tf/tf.h>
+#include <iostream>
+#include <fstream>
 
 #define PI 3.141592
 

@@ -52,11 +52,12 @@ private:
   std_msgs::Float32 back_rec_;
   std_msgs::Float32 ford_rec_;
   pcl::PointXYZ goal_lidar_;
+  pcl::PointXYZ pos_frame_;
   std::string frame_id_;
   std::string frame_lidar_;
   tf::TransformListener listener_;
-  std::string out_path_map_;
-  bool save_map_;
+  std::string url_file_out_;
+  bool save_data_;
   bool goal_received_;
   bool ctrl_received_;
   bool is_reconfig_;
@@ -79,6 +80,7 @@ private:
   // [subscriber attributes]
   ros::Subscriber lidar_subscriber_;
   ros::Subscriber goal_subscriber_;
+  ros::Subscriber pose_subscriber_;
 
   /**
    * \brief Callback for read lidar messages.
@@ -91,6 +93,13 @@ private:
    * execution of the node.
    */
   void cb_getGoalMsg(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &goal_msg);
+
+  /**
+   * \brief callback for read pose messages
+   * This message can be read from different localization sources by remapping in the
+   * execution of the node.
+   */
+  void cb_getPoseMsg(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &pose_msg);
 
   // [service attributes]
 

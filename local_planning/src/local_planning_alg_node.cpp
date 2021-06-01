@@ -10,6 +10,10 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->goal_received_ = false;
   this->ctrl_received_ = false;
 
+  this->pos_frame_.x = 0.0;
+  this->pos_frame_.y = 0.0;
+  this->pos_frame_.z = 0.0;
+
   this->public_node_handle_.getParam("/global_planning/stop_code", this->stop_code_);
 
   this->public_node_handle_.getParam("/ackermann_control/max_angle", this->ackermann_control_.max_angle);
@@ -24,8 +28,8 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
 
   this->public_node_handle_.getParam("/local_planning/frame_id", this->frame_id_);
   this->public_node_handle_.getParam("/local_planning/frame_lidar", this->frame_lidar_);
-  this->public_node_handle_.getParam("/local_planning/save_map", this->save_map_);
-  this->public_node_handle_.getParam("/local_planning/out_path_map", this->out_path_map_);
+  this->public_node_handle_.getParam("/local_planning/save_data", this->save_data_);
+  this->public_node_handle_.getParam("/local_planning/url_file_out", this->url_file_out_);
 
   this->public_node_handle_.getParam("/filter_configuration/max_range", filter_config_.max_range);
   this->public_node_handle_.getParam("/filter_configuration/min_range", filter_config_.min_range);
@@ -80,6 +84,8 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
                                                                 &LocalPlanningAlgNode::cb_lidarInfo, this);
   this->goal_subscriber_ = this->public_node_handle_.subscribe("/semilocal_goal", 1,
                                                                &LocalPlanningAlgNode::cb_getGoalMsg, this);
+  this->pose_subscriber_ = this->public_node_handle_.subscribe("/pose_plot", 1, &LocalPlanningAlgNode::cb_getPoseMsg,
+                                                               this);
 
   // [init services]
 
@@ -160,8 +166,10 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
 
     //local_path.points.clear();
     //local_path.points.push_back(local_goal);
-    local_path.points[local_path.points.size()-2].x = local_path.points[local_path.points.size()-2].x + this->base_in_lidarf_.x;
-    local_path.points[local_path.points.size()-2].y = local_path.points[local_path.points.size()-2].y + this->base_in_lidarf_.y;
+    local_path.points[local_path.points.size() - 2].x = local_path.points[local_path.points.size() - 2].x
+        + this->base_in_lidarf_.x;
+    local_path.points[local_path.points.size() - 2].y = local_path.points[local_path.points.size() - 2].y
+        + this->base_in_lidarf_.y;
     local_path.header.frame_id = this->frame_lidar_;
     this->local_goal_publisher_.publish(local_path);
     //////////////////////////////////////////////////
@@ -172,7 +180,8 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     static pcl::PointCloud<pcl::PointXYZ> collision_actions;
     static pcl::PointCloud<pcl::PointXYZ> free_actions;
 
-    this->local_planning_->controlActionCalculation(local_path.points[local_path.points.size()-2], this->base_in_lidarf_, scan_pcl_filt, collision_risk,
+    this->local_planning_->controlActionCalculation(local_path.points[local_path.points.size() - 2],
+                                                    this->base_in_lidarf_, scan_pcl_filt, collision_risk,
                                                     collision_actions, free_actions, this->ackermann_control_);
 
     collision_risk.header.frame_id = this->frame_lidar_;
@@ -205,11 +214,75 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     this->ctrl_received_ = true;
     //////////////////////////////////////////////////
 
-  }
+    // loop time
+    end = ros::Time::now().toSec();
+    ROS_INFO("duration total: %f", end - ini);
 
-  // loop time
-  end = ros::Time::now().toSec();
-  ROS_INFO("duration total: %f", end - ini);
+    //// SAVE DATA FOR PAPER
+    if (this->save_data_)
+    {
+      static int cont = 0;
+      static int subcont = 5;
+      static int dw_factor = 5;
+
+      std::ostringstream out_path_obs3d;
+      std::ostringstream out_obs3d;
+      std::ofstream file_obs3d;
+
+      std::ostringstream out_path_obs2d;
+      std::ostringstream out_obs2d;
+      std::ofstream file_obs2d;
+
+      std::ostringstream out_path_time;
+      std::ostringstream out_time;
+      std::ofstream file_time;
+
+      std::ostringstream out_path_pos2d;
+      std::ostringstream out_pos2d;
+      std::ofstream file_pos2d;
+
+      out_path_obs3d << this->url_file_out_ << cont << "_01_obs3d.csv";
+      out_path_obs2d << this->url_file_out_ << cont << "_02_obs2d.csv";
+      out_path_pos2d << this->url_file_out_ << cont << "_03_pos2d.csv";
+      out_path_time << this->url_file_out_ << cont << "_04_time.csv";
+
+      file_time.open(out_path_time.str().c_str(), std::ofstream::trunc);
+      out_time << (end - ini) << "\n";
+      file_time << out_time.str();
+      file_time.close();
+
+      file_pos2d.open(out_path_pos2d.str().c_str(), std::ofstream::trunc);
+      // z is the variance of x and y
+      out_pos2d << this->pos_frame_.x << ", " << this->pos_frame_.y << ", " << this->pos_frame_.z << "\n";
+      file_pos2d << out_pos2d.str();
+      file_pos2d.close();
+
+      if (subcont == dw_factor)
+      {
+        subcont = 0;
+
+        file_obs3d.open(out_path_obs3d.str().c_str(), std::ofstream::trunc);
+        for (int i = 0; i < scan_pcl_filt.points.size(); i++)
+        {
+          out_obs3d << scan_pcl_filt.points[i].x << ", " << scan_pcl_filt.points[i].y << "\n";
+        }
+        file_obs3d << out_obs3d.str();
+        file_obs3d.close();
+
+        file_obs2d.open(out_path_obs2d.str().c_str(), std::ofstream::trunc);
+        for (int i = 0; i < obstacles_pcl.points.size(); i++)
+        {
+          out_obs2d << obstacles_pcl.points[i].x << ", " << obstacles_pcl.points[i].y << "\n";
+        }
+        file_obs2d << out_obs2d.str();
+        file_obs2d.close();
+      }
+
+      cont++;
+      subcont++;
+    }
+
+  }
 
   this->alg_.unlock();
 }
@@ -291,6 +364,17 @@ void LocalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseWithCovariance
   this->base_in_lidarf_.y = pose_lidar.point.y;
   this->base_in_lidarf_.yaw = yaw;
   ///////////////////////////////////////////////////////////
+
+  this->alg_.unlock();
+}
+
+void LocalPlanningAlgNode::cb_getPoseMsg(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &pose_msg)
+{
+  this->alg_.lock();
+
+  this->pos_frame_.x = pose_msg->pose.pose.position.x;
+  this->pos_frame_.y = pose_msg->pose.pose.position.y;
+  this->pos_frame_.z = pose_msg->pose.covariance[0];
 
   this->alg_.unlock();
 }
