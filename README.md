@@ -1,7 +1,8 @@
 # aurova_planning
-This is a metapackage that contains different packages that perform global planning algorithims. Compiling this metapackage into ROS will compile all the packages at once. This metapackage is grouped as a project for eclipse C++. Each package contains a "packagename_doxygen_config" configuration file for generate doxygen documentation. The packages contained in this metapackage are:
+This is a metapackage that contains different packages that perform planning algorithims. Compiling this metapackage into ROS will compile all the packages at once. This metapackage is grouped as a project for eclipse C++. Each package contains a "packagename_doxygen_config" configuration file for generate doxygen documentation. The packages contained in this metapackage are:
 
 **global_planning**
+This package contains a node that, as input, reads /pose_plot topic of type geometry_msgs::PoseWithCovarianceStamped, and /move_base_simple/goal topic of type geometry_msgs::PoseStamped. With this information, this package calculates the best path in a OSM graph, an retuns the neares node of the calculate path as /semilocal_goal topic of type geometry_msgs::PoseWithCovarianceStamped.
 
 Parameters:
 * ~global_planning/url_path (default: ""): Path to OSM file for graph representation.
@@ -16,41 +17,42 @@ Parameters:
 * ~global_planning/operation_mode (default: null): Define operation mode: 1) follow path to global goal. 2) follow closed loop 3) bypass global goal.
 * ~global_planning/closed_loop (default: null): If operation_mode is 2, define vector with closed-loop nodes. 
 * ~global_planning/save_data (default: false): If it is true, the data will save in a file.
-* ~global_planning/url_file_out (default: ""): If save_data is true, define here de path of output data.
+* ~global_planning/url_file_out (default: ""): If save_data is true, define here the path of output data.
 
 **local_planning**
+This package contains a node that, as input, reads /velodyne_points of type sensor_msgs::PointCloud2, /semilocal_goal of type geometry_msgs::PoseWithCovarianceStamped, and /pose_plot of type geometry_msgs::PoseWithCovarianceStamped. With these information, the package infers the ackerman control actions in a topic /desired_ackermann_state of type ackermann_msgs::AckermannDriveStamped for real case, and /ackermann_cmd of type ackermann_msgs::AckermannDrive for gazebo simulation case.
 
 Parameters:
-* ~local_planning/frame_id (default: ""):
-* ~local_planning/frame_lidar (default: ""):
+* ~local_planning/frame_id (default: ""): Frame for local planning (usually "map").
+* ~local_planning/frame_lidar (default: ""): Frame for LiDAR sensor used (usually "velodyne").
 * ~local_planning/save_data (default: false): If it is true, the data will save in a file.
-* ~local_planning/url_file_out (default: ""): If save_data is true, define here de path of output data.
-* ~lidar_configuration/max_elevation_angle (default: null):
-* ~lidar_configuration/min_elevation_angle (default: null):
-* ~lidar_configuration/max_azimuth_angle (default: null):
-* ~lidar_configuration/min_azimuth_angle (default: null):
-* ~lidar_configuration/grid_azimuth_angular_resolution (default: null):
-* ~lidar_configuration/grid_elevation_angular_resolution (default: null):
-* ~filter_configuration/max_range (default: null):
-* ~filter_configuration/min_range (default: null):
-* ~filter_configuration/a (default: null):
-* ~filter_configuration/b (default: null):
-* ~filter_configuration/c (default: null):
-* ~filter_configuration/variance (default: null):
-* ~filter_configuration/radious (default: null):
-* ~filter_configuration/var_factor (default: null):
-* ~filter_configuration/ground_in_sim (default: null):
-* ~filter_configuration/is_simulation (default: false):
-* ~filter_configuration/is_reconfig (default: false):
-* ~ackermann_control/max_angle (default: null):
-* ~ackermann_control/delta_angle (default: null):
-* ~ackermann_control/v_length (default: null):
-* ~ackermann_control/delta_arc (default: null):
-* ~ackermann_control/max_arc (default: null):
-* ~ackermann_control/v_min (default: null):
-* ~ackermann_control/v_max (default: null):
-* ~ackermann_control/kp (default: null):
-* ~ackermann_control/margin (default: null):
+* ~local_planning/url_file_out (default: ""): If save_data is true, define here the path of output data.
+* ~lidar_configuration/max_elevation_angle (default: null): Max elevation for lidar beams.
+* ~lidar_configuration/min_elevation_angle (default: null): Min elevation for lidar beams.
+* ~lidar_configuration/max_azimuth_angle (default: null): Max azimuth for lidar beams.
+* ~lidar_configuration/min_azimuth_angle (default: null): Min azimuth for lidar beams.
+* ~lidar_configuration/grid_azimuth_angular_resolution (default: null): Azimuth resolution for lidar beams.
+* ~lidar_configuration/grid_elevation_angular_resolution (default: null): Elevation resolution for lidar beams.
+* ~filter_configuration/max_range (default: null): Max range for lidar beams.
+* ~filter_configuration/min_range (default: null): Min range for lidar beams
+* ~filter_configuration/a (default: null): Plane parameters (previously adjusted in optimization software).
+* ~filter_configuration/b (default: null): Plane parameters (previously adjusted in optimization software).
+* ~filter_configuration/c (default: null): Plane parameters (previously adjusted in optimization software).
+* ~filter_configuration/variance (default: null): Variance for consider points part of the plane.
+* ~filter_configuration/radious (default: null): To filter points out of this radious.
+* ~filter_configuration/var_factor (default: null): To do variance proportional to the distance respect to the center of the sensor.
+* ~filter_configuration/ground_in_sim (default: null): To filter ground in simulation case.
+* ~filter_configuration/is_simulation (default: false): It shoul be true for gazebo simulation case, and false for real or .bag file case.
+* ~filter_configuration/is_reconfig (default: false): If it is true, the rqt could be use to reconfigure parameters.
+* ~ackermann_control/max_angle (default: null): Max steering angle of used vehicle.
+* ~ackermann_control/delta_angle (default: null): Resolution of steering angle for control actions.
+* ~ackermann_control/v_length (default: null): Length between axles of used vehicle.
+* ~ackermann_control/delta_arc (default: null): Steps for estimated trajectory arcs.
+* ~ackermann_control/max_arc (default: null): Max value for estimated trajectory arcs.
+* ~ackermann_control/v_min (default: null): Min velocity considered for used vehicle.
+* ~ackermann_control/v_max (default: null): Max velocity considered for used vehicle.
+* ~ackermann_control/kp (default: null): Proportional change value for velocity control. If 1.0, proportional behavior unactivated.
+* ~ackermann_control/margin (default: null): Security margin computed from base_link frame.
 
 **get_pose_from_tf**
 This package contains a node that, as input, reads the /tf messages. This node calculates the transformation between two differents frames to obtain a odometry message. The node output is published in the topic /odometry_filtered of type nav_msgs::Odometry.
