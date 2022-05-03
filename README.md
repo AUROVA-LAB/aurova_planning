@@ -58,13 +58,6 @@ Parameters:
 * ~ackermann_control/kp (default: null): Proportional change value for velocity control. If 1.0, proportional behavior unactivated.
 * ~ackermann_control/margin (default: null): Security margin computed from base_link frame.
 
-**get_pose_from_tf**
-This package contains a node that, as input, reads the /tf messages. This node calculates the transformation between two differents frames to obtain a odometry message. The node output is published in the topic /odometry_filtered of type nav_msgs::Odometry.
-
-Parameters:
-* ~frame_id_tf (default: ""): Parent frame name to transform.
-* ~child_id_tf (default: ""): Child frame name to transform.
-
 **path_planning_demo (DEPRECATED!!)**
 This package contains a node that, as input, reads the topics /request_goal of type std_msgs::Bool, /re_locate of type std_msgs::Bool, and /amcl_pose of type geometry_msgs::PoseWithCovariance. The node output is published in the topics /visualization of type visualization_msgs::MarkerArray, and /move_base_simple/goal of type geometry_msgs::PoseStamped.
 
