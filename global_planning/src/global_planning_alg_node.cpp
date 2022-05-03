@@ -4,7 +4,7 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
     algorithm_base::IriBaseAlgorithm<GlobalPlanningAlgorithm>()
 {
   //init class attributes if necessary
-  this->loop_rate_ = 10; //in [Hz]
+  //this->loop_rate_ = 10; //in [Hz]
 
   //////////////////////////////////////////////////
   // get aplication parameters

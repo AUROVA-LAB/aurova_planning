@@ -4,7 +4,7 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
     algorithm_base::IriBaseAlgorithm<LocalPlanningAlgorithm>()
 {
   //init class attributes if necessary
-  this->loop_rate_ = 25; //in [Hz]
+  //this->loop_rate_ = 25; //in [Hz]
 
   this->local_planning_ = new LocalPlanning();
   this->goal_received_ = false;
