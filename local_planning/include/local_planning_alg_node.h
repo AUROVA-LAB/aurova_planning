@@ -99,7 +99,7 @@ private:
    * This message can be read from different localization sources by remapping in the
    * execution of the node.
    */
-  void cb_getPoseMsg(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &pose_msg);
+  void cb_getPoseMsg(const nav_msgs::Odometry::ConstPtr& pose_msg);
 
   // [service attributes]
 

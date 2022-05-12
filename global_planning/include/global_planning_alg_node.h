@@ -86,14 +86,7 @@ private:
    * This message can be read from different localization sources by remapping in the
    * execution of the node.
    */
-  void cb_getPoseMsg(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);
-  
-  /**
-   * \brief callback for read odometry messages
-   * This message can be read from different localization sources by remapping in the
-   * execution of the node.
-   */
-  void cb_getOdomMsg(const nav_msgs::Odometry::ConstPtr& odom_msg);
+  void cb_getPoseMsg(const nav_msgs::Odometry::ConstPtr& pose_msg);
 
   /**
    * \brief callback for read pose messages to use as a goal

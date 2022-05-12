@@ -67,7 +67,6 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
       > ("/semilocal_goal", 1);
 
   // [init subscribers]
-  //this->odom_subscriber_ = this->public_node_handle_.subscribe("/odom", 1, &GlobalPlanningAlgNode::cb_getOdomMsg, this);
   this->pose_subscriber_ = this->public_node_handle_.subscribe("/pose_plot", 1, &GlobalPlanningAlgNode::cb_getPoseMsg,
                                                                this);
   this->goal_subscriber_ = this->public_node_handle_.subscribe("/move_base_simple/goal", 1,
@@ -286,12 +285,12 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
 }
 
 /*  [subscriber callbacks] */
-void GlobalPlanningAlgNode::cb_getPoseMsg(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &pose_msg)
+void GlobalPlanningAlgNode::cb_getPoseMsg(const nav_msgs::Odometry::ConstPtr& pose_msg)
 {
-  this->alg_.lock();
+  //this->alg_.lock();
 
-///////////////////////////////////////////////////////////
-///// TRANSFORM TO TF FARME
+  ///////////////////////////////////////////////////////////
+  ///// TRANSFORM TO TF FARME
   geometry_msgs::PointStamped node_tf;
   geometry_msgs::PointStamped node_utm;
   node_tf.header.frame_id = this->frame_id_;
@@ -348,75 +347,12 @@ void GlobalPlanningAlgNode::cb_getPoseMsg(const geometry_msgs::PoseWithCovarianc
 
   this->flag_pose_ = true;
 
-  this->alg_.unlock();
+  //this->alg_.unlock();
 }
-void GlobalPlanningAlgNode::cb_getOdomMsg(const nav_msgs::Odometry::ConstPtr &odom_msg)
-{
-  this->alg_.lock();
 
-///////////////////////////////////////////////////////////
-///// TRANSFORM TO TF FARME
-  geometry_msgs::PointStamped node_tf;
-  geometry_msgs::PointStamped node_utm;
-  node_tf.header.frame_id = this->frame_id_;
-  node_tf.header.stamp = ros::Time(0); //ros::Time::now();
-  node_tf.point.x = odom_msg->pose.pose.position.x;
-  node_tf.point.y = odom_msg->pose.pose.position.y;
-  node_tf.point.z = odom_msg->pose.pose.position.z;
-  try
-  {
-    this->listener_.transformPoint("utm", node_tf, node_utm);
-
-  }
-  catch (tf::TransformException &ex)
-  {
-    ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
-    return;
-  }
-
-  geometry_msgs::QuaternionStamped orient_tf;
-  geometry_msgs::QuaternionStamped orient_utm;
-  orient_tf.header.frame_id = this->frame_id_;
-  orient_tf.header.stamp = ros::Time(0);
-  orient_tf.quaternion.x = odom_msg->pose.pose.orientation.x;
-  orient_tf.quaternion.y = odom_msg->pose.pose.orientation.y;
-  orient_tf.quaternion.z = odom_msg->pose.pose.orientation.z;
-  orient_tf.quaternion.w = odom_msg->pose.pose.orientation.w;
-  try
-  {
-    this->listener_.transformQuaternion("utm", orient_tf, orient_utm);
-
-  }
-  catch (tf::TransformException &ex)
-  {
-    ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
-    return;
-  }
-  double roll, pitch, yaw;
-  tf::Quaternion q_pose(orient_utm.quaternion.x, orient_utm.quaternion.y, orient_utm.quaternion.z,
-                        orient_utm.quaternion.w);
-  tf::Matrix3x3 m_pose(q_pose);
-  m_pose.getRPY(roll, pitch, yaw);
-  yaw = (yaw * 180.0) / PI;
-///////////////////////////////////////////////////////////
-
-// pose in utm frame
-  this->pose_.coordinates.at(0) = node_utm.point.x;
-  this->pose_.coordinates.at(1) = node_utm.point.y;
-  this->pose_.coordinates.at(2) = this->st_nodes_[0].coordinates[2]; //node_utm.point.z;
-  this->pose_.coordinates.at(3) = yaw;
-  this->pose_.matrix[0][0] = odom_msg->pose.covariance[0];
-  this->pose_.matrix[1][1] = odom_msg->pose.covariance[7];
-  this->pose_.matrix[2][2] = odom_msg->pose.covariance[14];
-  this->pose_.matrix[3][3] = odom_msg->pose.covariance[35];
-
-  this->flag_pose_ = true;
-
-  this->alg_.unlock();
-}
 void GlobalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseStamped::ConstPtr &goal_msg)
 {
-  this->alg_.lock();
+  //this->alg_.lock();
 
   ///////////////////////////////////////////////////////////
   ///// TRANSFORM TO TF FARME
@@ -491,7 +427,7 @@ void GlobalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseStamped::Cons
 
   this->flag_goal_ = true;
 
-  this->alg_.unlock();
+  //this->alg_.unlock();
 }
 
 /*  [service callbacks] */

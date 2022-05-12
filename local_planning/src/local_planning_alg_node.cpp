@@ -291,6 +291,8 @@ void LocalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseWithCovariance
 {
   this->alg_.lock();
 
+  std::cout << "Goal received!!!" << std::endl;
+
   ///////////////////////////////////////////////////////////
   ///// TRANSFORM FROM TF TO LIDAR FARME
   geometry_msgs::PointStamped goal_tf;
@@ -368,7 +370,7 @@ void LocalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseWithCovariance
   this->alg_.unlock();
 }
 
-void LocalPlanningAlgNode::cb_getPoseMsg(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &pose_msg)
+void LocalPlanningAlgNode::cb_getPoseMsg(const nav_msgs::Odometry::ConstPtr& pose_msg)
 {
   this->alg_.lock();
 
