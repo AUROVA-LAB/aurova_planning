@@ -5,6 +5,7 @@ project(local_planning)
 find_package(catkin REQUIRED)
 find_package(planning REQUIRED)
 FIND_PACKAGE(Eigen3 REQUIRED)
+FIND_PACKAGE(OpenCV REQUIRED)
 # ******************************************************************** 
 #                 Add catkin additional components here
 # ******************************************************************** 

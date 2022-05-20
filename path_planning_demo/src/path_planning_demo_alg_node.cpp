@@ -4,7 +4,7 @@ PathPlanningDemoAlgNode::PathPlanningDemoAlgNode(void) :
     algorithm_base::IriBaseAlgorithm<PathPlanningDemoAlgorithm>()
 {
   //init class attributes if necessary
-  this->loop_rate_ = 25; //in [Hz]
+  //this->loop_rate_ = 25; //in [Hz]
   this->flag_request_goal_.data = false;
 
   // [init publishers]
