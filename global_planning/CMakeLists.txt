@@ -4,6 +4,7 @@ project(global_planning)
 ## Find catkin macros and libraries
 find_package(catkin REQUIRED)
 find_package(planning REQUIRED)
+find_package(PCL REQUIRED)
 FIND_PACKAGE(Eigen3 REQUIRED)
 # ******************************************************************** 
 #                 Add catkin additional components here
@@ -77,7 +78,7 @@ catkin_package(
 #                   Add the include directories 
 # ******************************************************************** 
 include_directories(include)
-include_directories(${catkin_INCLUDE_DIRS})
+include_directories(${catkin_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${EIGEN_INCLUDE_DIR})
 # include_directories(${<dependency>_INCLUDE_DIR})
 
