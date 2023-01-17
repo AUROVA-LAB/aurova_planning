@@ -1,6 +1,6 @@
 ### Example of usage:
 
-You can run an example following the instructions in: [application_navigation](https://github.com/AUROVA-LAB/application_navigation) and [application_localization](https://github.com/AUROVA-LAB/application_localization).
+You can run an example following the instructions in [applications](https://github.com/AUROVA-LAB/applications) (Examples).
 
 # aurova_planning
 This is a metapackage that contains different packages that perform planning algorithims. Compiling this metapackage into ROS will compile all the packages at once. This metapackage is grouped as a project for eclipse C++. Each package contains a "packagename_doxygen_config" configuration file for generate doxygen documentation. The packages contained in this metapackage are:
@@ -57,13 +57,3 @@ Parameters:
 * ~ackermann_control/v_max (default: null): Max velocity considered for used vehicle.
 * ~ackermann_control/kp (default: null): Proportional change value for velocity control. If 1.0, proportional behavior unactivated.
 * ~ackermann_control/margin (default: null): Security margin computed from base_link frame.
-
-**path_planning_demo (DEPRECATED!!)**
-This package contains a node that, as input, reads the topics /request_goal of type std_msgs::Bool, /re_locate of type std_msgs::Bool, and /amcl_pose of type geometry_msgs::PoseWithCovariance. The node output is published in the topics /visualization of type visualization_msgs::MarkerArray, and /move_base_simple/goal of type geometry_msgs::PoseStamped.
-
-Parameters:
-* ~mode_path (default: 0): 1 -> close loop, 2 -> random trajectories, 3 -> global goal.
-* ~frame_id_markers (default: ""): Frame where the markers representing the trajectory will be published..
-* ~path_file_links (default: ""): Path to graph links generated with matlab scripts privided in this package.
-* ~path_file_nodes (default: ""): Path to graph nodes generated with matlab scripts privided in this package.
-* ~path_file_goals (default: ""): Path to graph goals generated with matlab scripts privided in this package.
