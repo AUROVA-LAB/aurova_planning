@@ -71,6 +71,7 @@ private:
   ros::Publisher collision_publisher_;
   ros::Publisher collision_actions_publisher_;
   ros::Publisher free_actions_publisher_;
+  ros::Publisher plane_publisher_;
 
   ros::Publisher ackermann_rad_publisher_;
   ros::Publisher ackermann_deg_publisher_;

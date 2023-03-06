@@ -63,6 +63,7 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->obstacles_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/velodyne_obstacles", 1);
   this->ground_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_obstacles", 1);
   this->limits_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_limits", 1);
+  this->plane_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_plane", 1);
   this->local_goal_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/local_goal", 1);
   this->collision_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/collision_risk", 1);
   this->collision_actions_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2
@@ -280,6 +281,33 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
 
       cont++;
       subcont++;
+    }
+    
+    // This part is only for plane adjustment!!
+    if (this->is_reconfig_){
+      static pcl::PointCloud<pcl::PointXYZ> plane_adj;
+      pcl::PointXYZ point_p;
+
+      int upper_limit = 400;
+      int lower_limit = -400;
+      float x_p, y_p, z_p;
+
+      plane_adj.points.clear();
+
+      for (int i = lower_limit; i < upper_limit; i++){
+        for (int j = lower_limit; j < upper_limit; j++){
+          x_p = (float)i / 100.0;
+          y_p = (float)j / 100.0;
+          z_p = -(x_p/this->filter_config_.a + y_p/this->filter_config_.b - 1) * this->filter_config_.c;
+
+          point_p.x = x_p;
+          point_p.y = y_p;
+          point_p.z = z_p;
+          plane_adj.points.push_back(point_p);
+        }
+      }
+      plane_adj.header.frame_id = this->frame_lidar_;
+      this->plane_publisher_.publish(plane_adj);
     }
 
   }
