@@ -25,6 +25,8 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->public_node_handle_.getParam("/ackermann_control/v_max", this->ackermann_control_.v_max);
   this->public_node_handle_.getParam("/ackermann_control/kp", this->ackermann_control_.kp);
   this->public_node_handle_.getParam("/ackermann_control/margin", this->ackermann_control_.margin);
+  this->public_node_handle_.getParam("/ackermann_control/carrot_ctrl", this->ackermann_control_.carrot_ctrl);
+  this->public_node_handle_.getParam("/ackermann_control/carrot_distance", this->ackermann_control_.carrot_distance);
 
   this->public_node_handle_.getParam("/local_planning/frame_id", this->frame_id_);
   this->public_node_handle_.getParam("/local_planning/frame_lidar", this->frame_lidar_);
@@ -36,6 +38,7 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->public_node_handle_.getParam("/filter_configuration/a", filter_config_.a);
   this->public_node_handle_.getParam("/filter_configuration/b", filter_config_.b);
   this->public_node_handle_.getParam("/filter_configuration/c", filter_config_.c);
+  this->public_node_handle_.getParam("/filter_configuration/lidar_protect", filter_config_.lidar_protect);
   this->public_node_handle_.getParam("/filter_configuration/variance", filter_config_.variance);
   this->public_node_handle_.getParam("/filter_configuration/radious", filter_config_.radious);
   this->public_node_handle_.getParam("/filter_configuration/var_factor", filter_config_.var_factor);
@@ -181,7 +184,7 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     static pcl::PointCloud<pcl::PointXYZ> collision_actions;
     static pcl::PointCloud<pcl::PointXYZ> free_actions;
 
-    this->local_planning_->controlActionCalculation(local_path.points[local_path.points.size() - 2],
+    this->local_planning_->controlActionCalculation(local_path.points[local_path.points.size() - 2], this->goal_lidar_,
                                                     this->base_in_lidarf_, scan_pcl_filt, collision_risk,
                                                     collision_actions, free_actions, this->ackermann_control_);
 
