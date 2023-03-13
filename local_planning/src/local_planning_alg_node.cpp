@@ -27,6 +27,7 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->public_node_handle_.getParam("/ackermann_control/margin", this->ackermann_control_.margin);
   this->public_node_handle_.getParam("/ackermann_control/carrot_ctrl", this->ackermann_control_.carrot_ctrl);
   this->public_node_handle_.getParam("/ackermann_control/carrot_distance", this->ackermann_control_.carrot_distance);
+  this->public_node_handle_.getParam("/ackermann_control/carrot_stop_distance", this->ackermann_control_.carrot_stop_distance);
 
   this->public_node_handle_.getParam("/local_planning/frame_id", this->frame_id_);
   this->public_node_handle_.getParam("/local_planning/frame_lidar", this->frame_lidar_);
