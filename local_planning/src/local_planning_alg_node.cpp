@@ -29,10 +29,12 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->public_node_handle_.getParam("/ackermann_control/carrot_distance", this->ackermann_control_.carrot_distance);
   this->public_node_handle_.getParam("/ackermann_control/carrot_stop_distance", this->ackermann_control_.carrot_stop_distance);
 
+  bool external_obstacle_detection;
   this->public_node_handle_.getParam("/local_planning/frame_id", this->frame_id_);
   this->public_node_handle_.getParam("/local_planning/frame_lidar", this->frame_lidar_);
   this->public_node_handle_.getParam("/local_planning/save_data", this->save_data_);
   this->public_node_handle_.getParam("/local_planning/url_file_out", this->url_file_out_);
+  this->public_node_handle_.param("/local_planning/external_obstacle_detection", external_obstacle_detection, false);
 
   this->public_node_handle_.getParam("/filter_configuration/max_range", filter_config_.max_range);
   this->public_node_handle_.getParam("/filter_configuration/min_range", filter_config_.min_range);
@@ -64,10 +66,13 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
           / lidar_config_.grid_elevation_angular_resolution;
 
   // [init publishers]
-  this->obstacles_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/velodyne_obstacles", 1);
-  this->ground_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_obstacles", 1);
-  this->limits_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_limits", 1);
-  this->plane_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_plane", 1);
+  if (!external_obstacle_detection){
+    this->obstacles_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/velodyne_obstacles", 1);
+    this->ground_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_obstacles", 1);
+    this->limits_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_limits", 1);
+  }
+  if (this->is_reconfig_)
+    this->plane_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/ground_plane", 1);
   this->local_goal_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/local_goal", 1);
   this->collision_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2 > ("/collision_risk", 1);
   this->collision_actions_publisher_ = public_node_handle_.advertise < sensor_msgs::PointCloud2
@@ -85,8 +90,22 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
       > ("/backward_recommended_velocity", 1);
 
   // [init subscribers]
-  this->lidar_subscriber_ = this->public_node_handle_.subscribe("/velodyne_points", 1,
+  if (!external_obstacle_detection){
+    this->lidar_subscriber_ = this->public_node_handle_.subscribe("/velodyne_points", 1,
                                                                 &LocalPlanningAlgNode::cb_lidarInfo, this);
+  }
+  else{
+    this->lidar_sync_subscriber_.subscribe(this->private_node_handle_,"/velodyne_points",3);
+    this->obstacle_sync_subscriber_.subscribe(this->private_node_handle_,"/ouster_obstacles",3);
+    this->ground_obstacle_sync_subscriber_.subscribe(this->private_node_handle_,"/ground_obstacles",3);
+    this->ground_limits_sync_subscriber_.subscribe(this->private_node_handle_,"/ground_limits",3);
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, sensor_msgs::PointCloud2, 
+                                                sensor_msgs::PointCloud2,sensor_msgs::PointCloud2> MySyncPolicy;
+    static message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(3), lidar_sync_subscriber_, obstacle_sync_subscriber_,
+                                                            ground_obstacle_sync_subscriber_, ground_limits_sync_subscriber_);
+    sync.registerCallback(boost::bind(&LocalPlanningAlgNode::cb_lidarInfo,this, _1, _2, _3, _4));
+  }
+  
   this->goal_subscriber_ = this->public_node_handle_.subscribe("/semilocal_goal", 1,
                                                                &LocalPlanningAlgNode::cb_getGoalMsg, this);
   this->pose_subscriber_ = this->public_node_handle_.subscribe("/pose_plot", 1, &LocalPlanningAlgNode::cb_getPoseMsg,
@@ -312,6 +331,166 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
       }
       plane_adj.header.frame_id = this->frame_lidar_;
       this->plane_publisher_.publish(plane_adj);
+    }
+
+  }
+
+  this->alg_.unlock();
+}
+
+void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr &scan,const sensor_msgs::PointCloud2::ConstPtr &obstacles, 
+                    const sensor_msgs::PointCloud2::ConstPtr &ground_obstacles, const sensor_msgs::PointCloud2::ConstPtr &ground_limits)
+{
+  this->alg_.lock();
+
+  double ini, end;
+
+  ini = ros::Time::now().toSec();
+
+  if (this->goal_received_)
+  {
+
+    //////////////////////////////////////////////////
+    //// 1) free-space perimeter calculation
+    pcl::PCLPointCloud2 aux;
+    static pcl::PointCloud<pcl::PointXYZ> scan_pcl;
+    static pcl::PointCloud<pcl::PointXYZ> scan_pcl_filt;
+    static pcl::PointCloud<pcl::PointXYZ> obstacles_pcl;
+    static pcl::PointCloud<pcl::PointXYZ> limits_pcl;
+
+    pcl_conversions::toPCL(*scan, aux);
+    pcl::fromPCLPointCloud2(aux, scan_pcl);
+    pcl_conversions::toPCL(*obstacles, aux);
+    pcl::fromPCLPointCloud2(aux, scan_pcl_filt);
+    pcl_conversions::toPCL(*ground_obstacles, aux);
+    pcl::fromPCLPointCloud2(aux, obstacles_pcl);
+    pcl_conversions::toPCL(*ground_limits, aux);
+    pcl::fromPCLPointCloud2(aux, limits_pcl);
+
+    //////////////////////////////////////////////////
+
+    //////////////////////////////////////////////////
+    //// 2) local goal calculation
+    static pcl::PointCloud<pcl::PointXYZ> local_path;
+
+    this->local_planning_->localGoalCalculation(this->goal_lidar_, obstacles_pcl, limits_pcl, local_path);
+
+    //local_path.points.clear();
+    //local_path.points.push_back(local_goal);
+    local_path.points[local_path.points.size() - 2].x = local_path.points[local_path.points.size() - 2].x
+        + this->base_in_lidarf_.x;
+    local_path.points[local_path.points.size() - 2].y = local_path.points[local_path.points.size() - 2].y
+        + this->base_in_lidarf_.y;
+    local_path.header.frame_id = this->frame_lidar_;
+    this->local_goal_publisher_.publish(local_path);
+    //////////////////////////////////////////////////
+
+    //////////////////////////////////////////////////
+    //// 3) control action calculation
+    static pcl::PointCloud<pcl::PointXYZ> collision_risk;
+    static pcl::PointCloud<pcl::PointXYZ> collision_actions;
+    static pcl::PointCloud<pcl::PointXYZ> free_actions;
+
+    this->local_planning_->controlActionCalculation(local_path.points[local_path.points.size() - 2], this->goal_lidar_,
+                                                    this->base_in_lidarf_, scan_pcl_filt, collision_risk,
+                                                    collision_actions, free_actions, this->ackermann_control_);
+
+    collision_risk.header.frame_id = this->frame_lidar_;
+    collision_actions.header.frame_id = this->frame_lidar_;
+    free_actions.header.frame_id = this->frame_lidar_;
+    this->collision_publisher_.publish(collision_risk);
+    this->collision_actions_publisher_.publish(collision_actions);
+    this->free_actions_publisher_.publish(free_actions);
+
+    this->ackermann_state_rad_.drive.steering_angle = this->ackermann_control_.steering;
+    this->ackermann_state_rad_.drive.speed = this->ackermann_control_.velocity;
+
+    //check is final position
+    if (this->goal_lidar_.z == this->stop_code_)
+    {
+      this->ackermann_state_rad_.drive.speed = 0.0;
+      this->ackermann_state_deg_.drive.speed = 0.0;
+      this->ackermann_state_rad_.drive.steering_angle = 0.0;
+      this->ackermann_state_deg_.drive.steering_angle = 0.0;
+    }
+
+    //proportional filtration
+    static float speed_prev = 0.0;
+    this->ackermann_state_rad_.drive.speed = speed_prev
+        + (this->ackermann_state_rad_.drive.speed - speed_prev) * this->ackermann_control_.kp;
+    speed_prev = this->ackermann_state_rad_.drive.speed;
+
+    this->ackermann_state_deg_ = this->ackermann_state_rad_;
+    this->ackermann_state_deg_.drive.steering_angle = this->ackermann_state_rad_.drive.steering_angle * 180.0 / PI;
+    this->ctrl_received_ = true;
+    //////////////////////////////////////////////////
+
+    // loop time
+    end = ros::Time::now().toSec();
+    ROS_INFO("duration total: %f", end - ini);
+
+    //// SAVE DATA FOR PAPER
+    if (this->save_data_)
+    {
+      static int cont = 0;
+      static int subcont = 5;
+      static int dw_factor = 5;
+
+      std::ostringstream out_path_obs3d;
+      std::ostringstream out_obs3d;
+      std::ofstream file_obs3d;
+
+      std::ostringstream out_path_obs2d;
+      std::ostringstream out_obs2d;
+      std::ofstream file_obs2d;
+
+      std::ostringstream out_path_time;
+      std::ostringstream out_time;
+      std::ofstream file_time;
+
+      std::ostringstream out_path_pos2d;
+      std::ostringstream out_pos2d;
+      std::ofstream file_pos2d;
+
+      out_path_obs3d << this->url_file_out_ << cont << "_01_obs3d.csv";
+      out_path_obs2d << this->url_file_out_ << cont << "_02_obs2d.csv";
+      out_path_pos2d << this->url_file_out_ << cont << "_03_pos2d.csv";
+      out_path_time << this->url_file_out_ << cont << "_04_time.csv";
+
+      file_time.open(out_path_time.str().c_str(), std::ofstream::trunc);
+      out_time << (end - ini) << "\n";
+      file_time << out_time.str();
+      file_time.close();
+
+      file_pos2d.open(out_path_pos2d.str().c_str(), std::ofstream::trunc);
+      // z is the variance of x and y
+      out_pos2d << this->pos_frame_.x << ", " << this->pos_frame_.y << ", " << this->pos_frame_.z << "\n";
+      file_pos2d << out_pos2d.str();
+      file_pos2d.close();
+
+      if (subcont == dw_factor)
+      {
+        subcont = 0;
+
+        file_obs3d.open(out_path_obs3d.str().c_str(), std::ofstream::trunc);
+        for (int i = 0; i < scan_pcl_filt.points.size(); i++)
+        {
+          out_obs3d << scan_pcl_filt.points[i].x << ", " << scan_pcl_filt.points[i].y << "\n";
+        }
+        file_obs3d << out_obs3d.str();
+        file_obs3d.close();
+
+        file_obs2d.open(out_path_obs2d.str().c_str(), std::ofstream::trunc);
+        for (int i = 0; i < obstacles_pcl.points.size(); i++)
+        {
+          out_obs2d << obstacles_pcl.points[i].x << ", " << obstacles_pcl.points[i].y << "\n";
+        }
+        file_obs2d << out_obs2d.str();
+        file_obs2d.close();
+      }
+
+      cont++;
+      subcont++;
     }
 
   }

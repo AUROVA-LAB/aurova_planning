@@ -83,10 +83,17 @@ private:
   ros::Subscriber goal_subscriber_;
   ros::Subscriber pose_subscriber_;
 
+  message_filters::Subscriber<sensor_msgs::PointCloud2> lidar_sync_subscriber_;
+  message_filters::Subscriber<sensor_msgs::PointCloud2> obstacle_sync_subscriber_;
+  message_filters::Subscriber<sensor_msgs::PointCloud2> ground_obstacle_sync_subscriber_;
+  message_filters::Subscriber<sensor_msgs::PointCloud2> ground_limits_sync_subscriber_;
+
   /**
    * \brief Callback for read lidar messages.
    */
   void cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr &scan);
+  void cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr &scan,const sensor_msgs::PointCloud2::ConstPtr &obstacles, 
+                    const sensor_msgs::PointCloud2::ConstPtr &ground_obstacles, const sensor_msgs::PointCloud2::ConstPtr &ground_limits);
 
   /**
    * \brief callback for read pose messages to use as a goal
