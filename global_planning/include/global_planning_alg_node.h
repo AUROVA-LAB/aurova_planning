@@ -47,6 +47,7 @@ class GlobalPlanningAlgNode : public algorithm_base::IriBaseAlgorithm<GlobalPlan
 {
 private:
 
+  bool init_loop_;
   bool flag_pose_;
   bool flag_goal_;
   bool save_data_;

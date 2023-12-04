@@ -14,6 +14,7 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
   this->index_path_ = 0;
   this->flag_pose_ = false;
   this->flag_goal_ = false;
+  this->init_loop_ = false;
   this->public_node_handle_.getParam("/global_planning/url_path", url_path);
   this->public_node_handle_.getParam("/global_planning/url_file_out", this->url_file_out_);
   this->public_node_handle_.getParam("/global_planning/save_data", this->save_data_);
@@ -59,7 +60,7 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
   //////////////////////////////////////////////////
   // parse graph to a struct array
   this->st_nodes_ = this->graph_->getStructGraph();
-  this->fromUtmTransform();
+  //this->fromUtmTransform();
 
   // [init publishers]
   this->marker_pub_ = this->public_node_handle_.advertise < visualization_msgs::MarkerArray > ("/visualization", 1);
@@ -94,7 +95,7 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
   {
     this->parseNodesToRosMarker(this->marker_array_);
     this->parseLinksToRosMarker(this->marker_array_);
-    first_exec = false;
+    if (this->marker_array_.markers.size() > 0) first_exec = false;
   }
 
   switch (this->operation_mode_)
@@ -176,11 +177,10 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
     case MODE_LOOP:
 
       static int index_loop = 0;
-      static bool initiation = false;
 
       if (this->flag_pose_ && this->flag_goal_)
       {
-        if (!initiation)
+        if (!this->init_loop_)
         {
           float min_dist = 100000;
 
@@ -197,7 +197,7 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
               index_loop = i;
             }
           }
-          initiation = true;
+          this->init_loop_ = true;
         }
 
         ///////////////////////////////////////////////////////////
@@ -278,9 +278,9 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
   // [fill action structure and make request to the action server]
 
   // [publish messages]
-  this->tf_to_utm_.header.seq = this->tf_to_utm_.header.seq + 1;
-  this->tf_to_utm_.header.stamp = ros::Time::now();
-  this->broadcaster_.sendTransform(this->tf_to_utm_);
+  //this->tf_to_utm_.header.seq = this->tf_to_utm_.header.seq + 1;
+  //this->tf_to_utm_.header.stamp = ros::Time::now();
+  //this->broadcaster_.sendTransform(this->tf_to_utm_);
   this->marker_pub_.publish(this->marker_array_);
 }
 
@@ -353,6 +353,8 @@ void GlobalPlanningAlgNode::cb_getPoseMsg(const nav_msgs::Odometry::ConstPtr& po
 void GlobalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseStamped::ConstPtr &goal_msg)
 {
   //this->alg_.lock();
+
+  this->init_loop_ = false;
 
   ///////////////////////////////////////////////////////////
   ///// TRANSFORM TO TF FARME
@@ -473,23 +475,23 @@ int GlobalPlanningAlgNode::parseNodesToRosMarker(visualization_msgs::MarkerArray
   text.action = visualization_msgs::Marker::ADD;
 
 // Set the scale of the marker -- 1x1x1 here means 1m on a side
-  marker.scale.x = 4.0;
-  marker.scale.y = 4.0;
+  marker.scale.x = 0.7;
+  marker.scale.y = 0.7;
   marker.scale.z = 0.05;
 
-  text.scale.x = 4.0;
-  text.scale.y = 4.0;
-  text.scale.z = 4.0;
+  text.scale.x = 0.7;
+  text.scale.y = 0.7;
+  text.scale.z = 0.7;
 
 // Set the color -- be sure to set alpha to something non-zero!
-  marker.color.r = 1.0f;
-  marker.color.g = 0.0f;
+  marker.color.r = 0.0f;
+  marker.color.g = 1.0f;
   marker.color.b = 0.0f;
-  marker.color.a = 0.7;
+  marker.color.a = 1.0;
 
-  text.color.r = 1.0f;
-  text.color.g = 1.0f;
-  text.color.b = 1.0f;
+  text.color.r = 0.0f;
+  text.color.g = 0.0f;
+  text.color.b = 0.0f;
   text.color.a = 0.7;
 
   marker.lifetime = ros::Duration();
@@ -653,7 +655,7 @@ int GlobalPlanningAlgNode::parseLinksToRosMarker(visualization_msgs::MarkerArray
   marker.action = visualization_msgs::Marker::ADD;
 
 // Set the scale of the marker
-  marker.scale.x = 0.1;
+  marker.scale.x = 0.5;
 
 // Set the color -- be sure to set alpha to something non-zero!
   marker.color.r = 0.0f;
