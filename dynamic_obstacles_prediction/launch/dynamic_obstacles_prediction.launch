@@ -1,0 +1,5 @@
+<launch>
+ 
+   <node name="dynamic_obstacles_prediction" pkg="dynamic_obstacles_prediction" type="dynamic_obstacles_prediction_node" launch-prefix="xterm -e gdb --args"/>
+
+</launch>

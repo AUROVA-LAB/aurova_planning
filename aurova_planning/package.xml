@@ -51,6 +51,7 @@
 
   <exec_depend>global_planning</exec_depend>
   <exec_depend>local_planning</exec_depend>
+  <exec_depend>dynamic_obstacles_prediction</exec_depend>
 
   <buildtool_depend>catkin</buildtool_depend>
   
