@@ -32,6 +32,7 @@
 #define MODE_PATH 1
 #define MODE_LOOP 2
 #define MODE_BYPASS 3
+#define MODE_INIT_LOOP 4
 
 // [publisher subscriber headers]
 
@@ -48,6 +49,7 @@ class GlobalPlanningAlgNode : public algorithm_base::IriBaseAlgorithm<GlobalPlan
 private:
 
   bool init_loop_;
+  int index_loop;
   bool flag_pose_;
   bool flag_goal_;
   bool save_data_;

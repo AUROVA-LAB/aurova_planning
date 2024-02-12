@@ -8,6 +8,7 @@
 #include <geometry_msgs/Pose.h>
 #include <detection_msgs/PositionList.h>
 #include <nav_msgs/Odometry.h>
+#include <ackermann_msgs/AckermannDrive.h>
 
 #include <iostream>
 #include <math.h>
@@ -43,7 +44,7 @@ class DynamicObstaclePredictionNode{
 
   float filter_radious;
   double keep_time;
-  float time_per_distance, safety_margin;
+  float time_per_distance, safety_margin, robot_speed;
   ros::NodeHandle nh;
 
   //Publisher
@@ -52,6 +53,7 @@ class DynamicObstaclePredictionNode{
 
   //Subscriber
   ros::Subscriber pose_subscriber;  
+  ros::Subscriber speed_subscriber;  
   message_filters::Subscriber<detection_msgs::PositionList>obstacles_sub;
   message_filters::Subscriber<sensor_msgs::PointCloud2> ground_points_sub, obstacles_points_sub;
   public:
@@ -59,6 +61,7 @@ class DynamicObstaclePredictionNode{
     void predict_pointcloud(PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud);
     void callback(const sensor_msgs::PointCloud2::ConstPtr&,const sensor_msgs::PointCloud2::ConstPtr&,const detection_msgs::PositionListConstPtr&);
     void pose_callback(const nav_msgs::Odometry::ConstPtr& pose_msg);
+    void speed_callback(const ackermann_msgs::AckermannDrive::ConstPtr& ackermann_msg);
 };
 ///////////////////////////////////////callback
 
@@ -84,6 +87,7 @@ DynamicObstaclePredictionNode::DynamicObstaclePredictionNode(){
   sync.registerCallback(boost::bind(&DynamicObstaclePredictionNode::callback,this, _1, _2, _3));
 
   pose_subscriber = nh.subscribe("/localization", 1, &DynamicObstaclePredictionNode::pose_callback, this);
+  speed_subscriber = nh.subscribe("/carla/base_link/ackermann_cmd", 1, &DynamicObstaclePredictionNode::speed_callback, this);
 
   //Init publishers 
   pc_filtered_pub = nh.advertise<sensor_msgs::PointCloud2> ("/ouster_prediction_obstacles", 1);
@@ -92,6 +96,11 @@ DynamicObstaclePredictionNode::DynamicObstaclePredictionNode(){
 
 void DynamicObstaclePredictionNode::pose_callback(const nav_msgs::Odometry::ConstPtr& pose_msg){
   this->robot_pose=pose_msg->pose.pose;
+}
+
+void DynamicObstaclePredictionNode::speed_callback(const ackermann_msgs::AckermannDrive::ConstPtr& ackermann_msg){
+  //Approximate the speed in the local axis X, using the steering angle as the angular angle.
+  this->robot_speed=ackermann_msg->speed*cos(ackermann_msg->steering_angle);
 }
 
 void DynamicObstaclePredictionNode::callback(const sensor_msgs::PointCloud2::ConstPtr& ground_obstacles_msg,const sensor_msgs::PointCloud2::ConstPtr& ouster_obstacles_msg,const detection_msgs::PositionListConstPtr& obstacles_position_msg)
@@ -182,18 +191,21 @@ void DynamicObstaclePredictionNode::predict_pointcloud(PointCloud::Ptr input_clo
     bool point_added=false;
     for(int i=0;i<obstacles.size();i++){
       if (sqrt(pow(point.x-obstacles[i].relative_position.x,2)+pow(point.y-obstacles[i].relative_position.y,2))<=filter_radious){
-        //Calculate distance to robot, considering a security margin.
-        float d =  abs(obstacles[i].relative_position.x)-safety_margin;
-        if(d<0) d=0;
+        //Calculate when they will cross each other.
+        float t=0;
+        if(abs(obstacles[i].relative_speed[0]-robot_speed)>0.01){
+          t =  abs(obstacles[i].relative_position.x/(1.3-obstacles[i].relative_speed[0]))-safety_margin;
+          if(t<0 or t>5.0) t=0;
+        }
         //Move the point
-        Eigen::Vector3f traslation = d*time_per_distance*obstacles[i].relative_speed;
+        Eigen::Vector3f traslation = t*obstacles[i].relative_speed;
         auto new_point=point;
         new_point.x+=traslation[0]; new_point.y+=traslation[1];
         output_cloud->push_back(new_point);
 
         //Move the point, with a trail
         // for(float alpha=1.0;alpha>0.85;alpha-=0.05){
-        //   Eigen::Vector2f traslation = alpha*d*time_per_distance*obstacles[i].speed;
+        //   Eigen::Vector3f traslation = alpha*d*time_per_distance*obstacles[i].speed;
         //   auto new_point=point;
         //   new_point.x+=traslation[0]; new_point.y+=traslation[1];
         //   output_cloud->push_back(new_point);

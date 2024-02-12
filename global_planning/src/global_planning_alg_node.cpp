@@ -56,6 +56,7 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
   this->global_goal_.matrix[1][1] = var_y;
   this->global_goal_.matrix[2][2] = var_z;
   this->global_goal_.matrix[3][3] = var_w;
+  this->index_loop = 0;
 
   //////////////////////////////////////////////////
   // parse graph to a struct array
@@ -174,10 +175,8 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
         this->local_goal_pub_.publish(this->local_goal_);
       }
       break;
+
     case MODE_LOOP:
-
-      static int index_loop = 0;
-
       if (this->flag_pose_ && this->flag_goal_)
       {
         if (!this->init_loop_)
@@ -194,7 +193,7 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
             if (distance < min_dist)
             {
               min_dist = distance;
-              index_loop = i;
+              this->index_loop = i;
             }
           }
           this->init_loop_ = true;
@@ -206,8 +205,8 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
         geometry_msgs::PointStamped node_utm;
         node_utm.header.frame_id = "utm";
         node_utm.header.stamp = ros::Time(0); //ros::Time::now();
-        node_utm.point.x = this->st_nodes_[this->closed_loop_[index_loop]].coordinates[0];
-        node_utm.point.y = this->st_nodes_[this->closed_loop_[index_loop]].coordinates[1];
+        node_utm.point.x = this->st_nodes_[this->closed_loop_[this->index_loop]].coordinates[0];
+        node_utm.point.y = this->st_nodes_[this->closed_loop_[this->index_loop]].coordinates[1];
         node_utm.point.z = 0.0;
         try
         {
@@ -234,18 +233,19 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
         this->local_goal_.pose.covariance[14] = this->global_goal_.matrix[2][2];
         this->local_goal_.pose.covariance[35] = this->global_goal_.matrix[3][3];
 
-        float diff_x = this->st_nodes_[this->closed_loop_[index_loop]].coordinates[0] - this->pose_.coordinates[0];
-        float diff_y = this->st_nodes_[this->closed_loop_[index_loop]].coordinates[1] - this->pose_.coordinates[1];
+        float diff_x = this->st_nodes_[this->closed_loop_[this->index_loop]].coordinates[0] - this->pose_.coordinates[0];
+        float diff_y = this->st_nodes_[this->closed_loop_[this->index_loop]].coordinates[1] - this->pose_.coordinates[1];
         float distance = sqrt(pow(diff_x, 2) + pow(diff_y, 2));
+    
         if (distance < this->rad_reached_)
         {
-          if (index_loop + 1 < this->closed_loop_.size())
+          if (this->index_loop + 1 < this->closed_loop_.size())
           {
-            index_loop = index_loop + 1;
+            this->index_loop = this->index_loop + 1;
           }
           else
           {
-            index_loop = 0;
+            this->index_loop = 0;
           }
         }
 
@@ -271,6 +271,14 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
         this->local_goal_pub_.publish(this->local_goal_);
       }
       break;
+
+    case MODE_INIT_LOOP:
+      if (this->flag_pose_ && this->flag_goal_){
+        this->index_loop = 0;
+        this->init_loop_ = true;
+        this->operation_mode_= MODE_LOOP;
+        break;
+      }
   }
 
   // [fill srv structure and make request to the server]
