@@ -73,7 +73,7 @@ private:
   tf::TransformBroadcaster broadcaster_;
   tf::TransformListener listener_;
   Graph *graph_;
-  std::vector<double> closed_loop_;
+  std::vector<int> closed_loop_;
 
   // [publisher attributes]
   ros::Publisher marker_pub_;

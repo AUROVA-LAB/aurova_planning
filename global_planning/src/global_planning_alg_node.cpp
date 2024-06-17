@@ -8,7 +8,7 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
 
   //////////////////////////////////////////////////
   // get aplication parameters
-  std::string url_path, type_dist;
+  std::string url_path, type_dist, string_closed_loop;
   double var_x, var_y, var_z, var_w;
   this->vectors_size_ = 4;
   this->index_path_ = 0;
@@ -27,7 +27,11 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
   this->public_node_handle_.getParam("/global_planning/rad_reached", this->rad_reached_);
   this->public_node_handle_.getParam("/global_planning/operation_mode", this->operation_mode_);
   this->public_node_handle_.getParam("/global_planning/stop_code", this->stop_code_);
-  this->public_node_handle_.getParam("/global_planning/closed_loop", this->closed_loop_);
+  this->public_node_handle_.getParam("/global_planning/closed_loop", string_closed_loop);
+  std::istringstream parse_closed_loop(string_closed_loop);
+  int number;
+  while (parse_closed_loop>>number)
+    this->closed_loop_.push_back(number) ; 
 
   //////////////////////////////////////////////////
   // set covariance matrix
