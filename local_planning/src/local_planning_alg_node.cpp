@@ -6,7 +6,7 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   //init class attributes if necessary
   //this->loop_rate_ = 25; //in [Hz]
 
-  this->local_planning_ = new LocalPlanning();
+  
   this->goal_received_ = false;
   this->ctrl_received_ = false;
 
@@ -30,11 +30,18 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
   this->public_node_handle_.getParam("/ackermann_control/carrot_stop_distance", this->ackermann_control_.carrot_stop_distance);
 
   bool external_obstacle_detection;
+  float wa, wr, aa, ar, wa2;
   this->public_node_handle_.getParam("/local_planning/frame_id", this->frame_id_);
   this->public_node_handle_.getParam("/local_planning/frame_lidar", this->frame_lidar_);
   this->public_node_handle_.getParam("/local_planning/save_data", this->save_data_);
   this->public_node_handle_.getParam("/local_planning/url_file_out", this->url_file_out_);
+  this->public_node_handle_.getParam("/local_planning/wa", wa);
+  this->public_node_handle_.getParam("/local_planning/wr", wr);
+  this->public_node_handle_.getParam("/local_planning/aa", aa);
+  this->public_node_handle_.getParam("/local_planning/ar", ar);
+  this->public_node_handle_.getParam("/local_planning/wa", wa2);
   this->public_node_handle_.param("/local_planning/external_obstacle_detection", external_obstacle_detection, false);
+  this->local_planning_ = new LocalPlanning(wa, wr, aa, ar, wa2);
 
   this->public_node_handle_.getParam("/filter_configuration/max_range", filter_config_.max_range);
   this->public_node_handle_.getParam("/filter_configuration/min_range", filter_config_.min_range);
