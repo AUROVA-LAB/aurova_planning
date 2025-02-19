@@ -368,6 +368,15 @@ void GlobalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseStamped::Cons
 
   this->init_loop_ = false;
 
+  if (this->operation_mode_ == MODE_LOOP){
+    std::string string_closed_loop;
+    this->public_node_handle_.getParam("/global_planning/closed_loop", string_closed_loop);
+    std::istringstream parse_closed_loop(string_closed_loop);
+    int number;
+    this->closed_loop_.clear();
+    while (parse_closed_loop>>number)
+      this->closed_loop_.push_back(number) ; 
+  }
   ///////////////////////////////////////////////////////////
   ///// TRANSFORM TO TF FARME
   geometry_msgs::PointStamped node_tf;
