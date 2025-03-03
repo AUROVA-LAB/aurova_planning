@@ -33,7 +33,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include "geometry_msgs/PoseWithCovarianceStamped.h"
 #include "nav_msgs/Odometry.h"
-#include "ackermann_msgs/AckermannDriveStamped.h"
+#include "ackermann_msgs/AckermannDrive.h"
 #include "std_msgs/Float32.h"
 #include <pcl_ros/point_cloud.h>
 #include <planning/local_planning.h>

@@ -88,13 +88,8 @@ LocalPlanningAlgNode::LocalPlanningAlgNode(void) :
 
   this->ackermann_rad_publisher_ = this->public_node_handle_.advertise < ackermann_msgs::AckermannDrive
       > ("/ackermann_cmd", 1);
-  this->ackermann_deg_publisher_ = this->public_node_handle_.advertise < ackermann_msgs::AckermannDriveStamped
+  this->ackermann_deg_publisher_ = this->public_node_handle_.advertise < ackermann_msgs::AckermannDrive
       > ("/desired_ackermann_state", 1);
-  this->ford_rec_publisher_ = this->public_node_handle_.advertise < std_msgs::Float32
-      > ("/forward_recommended_velocity", 1);
-
-  this->back_rec_publisher_ = this->public_node_handle_.advertise < std_msgs::Float32
-      > ("/backward_recommended_velocity", 1);
 
   // [init subscribers]
   if (!external_obstacle_detection){
@@ -142,15 +137,9 @@ void LocalPlanningAlgNode::mainNodeThread(void)
 
   // [publish messages]
 
-  // recommended speed bridge
-  ford_rec_.data = 1000;
-  back_rec_.data = 1000;
-  this->ford_rec_publisher_.publish(this->ford_rec_);
-  this->back_rec_publisher_.publish(this->back_rec_);
-
   if (this->ctrl_received_)
   {
-    this->ackermann_rad_publisher_.publish(this->ackermann_state_rad_.drive);
+    this->ackermann_rad_publisher_.publish(this->ackermann_state_rad_);
     this->ackermann_deg_publisher_.publish(this->ackermann_state_deg_);
   }
 }
@@ -222,26 +211,26 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     this->collision_actions_publisher_.publish(collision_actions);
     this->free_actions_publisher_.publish(free_actions);
 
-    this->ackermann_state_rad_.drive.steering_angle = this->ackermann_control_.steering;
-    this->ackermann_state_rad_.drive.speed = this->ackermann_control_.velocity;
+    this->ackermann_state_rad_.steering_angle = this->ackermann_control_.steering;
+    this->ackermann_state_rad_.speed = this->ackermann_control_.velocity;
 
     //check is final position
     if (this->goal_lidar_.z == this->stop_code_)
     {
-      this->ackermann_state_rad_.drive.speed = 0.0;
-      this->ackermann_state_deg_.drive.speed = 0.0;
-      this->ackermann_state_rad_.drive.steering_angle = 0.0;
-      this->ackermann_state_deg_.drive.steering_angle = 0.0;
+      this->ackermann_state_rad_.speed = 0.0;
+      this->ackermann_state_deg_.speed = 0.0;
+      this->ackermann_state_rad_.steering_angle = 0.0;
+      this->ackermann_state_deg_.steering_angle = 0.0;
     }
 
     //proportional filtration
     static float speed_prev = 0.0;
-    this->ackermann_state_rad_.drive.speed = speed_prev
-        + (this->ackermann_state_rad_.drive.speed - speed_prev) * this->ackermann_control_.kp;
-    speed_prev = this->ackermann_state_rad_.drive.speed;
+    this->ackermann_state_rad_.speed = speed_prev
+        + (this->ackermann_state_rad_.speed - speed_prev) * this->ackermann_control_.kp;
+    speed_prev = this->ackermann_state_rad_.speed;
 
     this->ackermann_state_deg_ = this->ackermann_state_rad_;
-    this->ackermann_state_deg_.drive.steering_angle = this->ackermann_state_rad_.drive.steering_angle * 180.0 / PI;
+    this->ackermann_state_deg_.steering_angle = this->ackermann_state_rad_.steering_angle * 180.0 / PI;
     this->ctrl_received_ = true;
     //////////////////////////////////////////////////
 
@@ -409,26 +398,26 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr
     this->collision_actions_publisher_.publish(collision_actions);
     this->free_actions_publisher_.publish(free_actions);
 
-    this->ackermann_state_rad_.drive.steering_angle = this->ackermann_control_.steering;
-    this->ackermann_state_rad_.drive.speed = this->ackermann_control_.velocity;
+    this->ackermann_state_rad_.steering_angle = this->ackermann_control_.steering;
+    this->ackermann_state_rad_.speed = this->ackermann_control_.velocity;
 
     //check is final position
     if (this->goal_lidar_.z == this->stop_code_)
     {
-      this->ackermann_state_rad_.drive.speed = 0.0;
-      this->ackermann_state_deg_.drive.speed = 0.0;
-      this->ackermann_state_rad_.drive.steering_angle = 0.0;
-      this->ackermann_state_deg_.drive.steering_angle = 0.0;
+      this->ackermann_state_rad_.speed = 0.0;
+      this->ackermann_state_deg_.speed = 0.0;
+      this->ackermann_state_rad_.steering_angle = 0.0;
+      this->ackermann_state_deg_.steering_angle = 0.0;
     }
 
     //proportional filtration
     static float speed_prev = 0.0;
-    this->ackermann_state_rad_.drive.speed = speed_prev
-        + (this->ackermann_state_rad_.drive.speed - speed_prev) * this->ackermann_control_.kp;
-    speed_prev = this->ackermann_state_rad_.drive.speed;
+    this->ackermann_state_rad_.speed = speed_prev
+        + (this->ackermann_state_rad_.speed - speed_prev) * this->ackermann_control_.kp;
+    speed_prev = this->ackermann_state_rad_.speed;
 
     this->ackermann_state_deg_ = this->ackermann_state_rad_;
-    this->ackermann_state_deg_.drive.steering_angle = this->ackermann_state_rad_.drive.steering_angle * 180.0 / PI;
+    this->ackermann_state_deg_.steering_angle = this->ackermann_state_rad_.steering_angle * 180.0 / PI;
     this->ctrl_received_ = true;
     //////////////////////////////////////////////////
 

@@ -47,10 +47,8 @@ private:
   local_planning_lib::FilteringConfiguration filter_config_;
   local_planning_lib::AckermannControl ackermann_control_;
   local_planning_lib::Pose2D base_in_lidarf_;
-  ackermann_msgs::AckermannDriveStamped ackermann_state_rad_;
-  ackermann_msgs::AckermannDriveStamped ackermann_state_deg_;
-  std_msgs::Float32 back_rec_;
-  std_msgs::Float32 ford_rec_;
+  ackermann_msgs::AckermannDrive ackermann_state_rad_;
+  ackermann_msgs::AckermannDrive ackermann_state_deg_;
   pcl::PointXYZ goal_lidar_;
   pcl::PointXYZ pos_frame_;
   std::string frame_id_;
@@ -75,8 +73,6 @@ private:
 
   ros::Publisher ackermann_rad_publisher_;
   ros::Publisher ackermann_deg_publisher_;
-  ros::Publisher back_rec_publisher_;
-  ros::Publisher ford_rec_publisher_;
 
   // [subscriber attributes]
   ros::Subscriber lidar_subscriber_;

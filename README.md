@@ -24,7 +24,7 @@ Parameters:
 * ~global_planning/url_file_out (default: ""): If save_data is true, define here the path of output data.
 
 **local_planning**
-This package contains a node that, as input, reads /velodyne_points of type sensor_msgs::PointCloud2, /semilocal_goal of type geometry_msgs::PoseWithCovarianceStamped, and /pose_plot of type geometry_msgs::PoseWithCovarianceStamped. With these information, the package infers the ackerman control actions in a topic /desired_ackermann_state of type ackermann_msgs::AckermannDriveStamped for real case, and /ackermann_cmd of type ackermann_msgs::AckermannDrive for gazebo simulation case.
+This package contains a node that, as input, reads /velodyne_points of type sensor_msgs::PointCloud2, /semilocal_goal of type geometry_msgs::PoseWithCovarianceStamped, and /pose_plot of type geometry_msgs::PoseWithCovarianceStamped. With these information, the package infers the ackerman control actions in a topic /desired_ackermann_state of type ackermann_msgs::AckermannDrive for real case, and /ackermann_cmd of type ackermann_msgs::AckermannDrive for gazebo simulation case.
 
 Parameters:
 * ~local_planning/frame_id (default: ""): Frame for local planning (usually "map").
