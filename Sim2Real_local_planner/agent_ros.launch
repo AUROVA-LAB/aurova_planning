@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<!-- -->
+<launch>
+    <arg name="image_topic" default="/camera/color/image_raw"/>
+    <arg name="range_topic" default="/ouster/range_image"/>
+    <arg name="pose_topic" default="/localization"/>
+    <arg name="goal_topic" default="/semilocal_goal"/>
+    <arg name="state_topic" default="/estimated_ackermann_state"/>
+    <arg name="ackermann_cmd_topic" default="/ackermann_cmd"/>
+    <arg name="desired_ackermann_topic" default="/desired_ackermann_state"/> <!-- The topic that communicates with clear, in degrees -->
+    <arg name="model" default="rgb+depth"/>
+    <arg name="inverted_axis" default="true"/>
+    <arg name="model_path" default="/catkin_ws/src/Sim2Real/log/scene4_octreeGS_safety/version_0/epoch59-val_loss0.64990.pth "/>
+    
+  
+  <node pkg="sim2real_local_planner" name="agent_ros" type="agent_ros.py" output="screen">
+    <remap from="~rgb_image"  to="$(arg image_topic)"/>
+    <remap from="~range_image" to="$(arg range_topic)"/>
+    <remap from="~pose" to="$(arg pose_topic)"/>
+    <remap from="~goal"   to="$(arg goal_topic)"/>
+    <remap from="~ackermann_state"   to="$(arg state_topic)"/>
+    <remap from="~ackermann_cmd"   to="$(arg ackermann_cmd_topic)"/>
+    <remap from="~desired_ackermann_state"   to="$(arg desired_ackermann_topic)"/>
+    <param name="~model"   value="$(arg model)"/>
+    <param name="~model_path"   value="$(arg model_path)"/>
+  </node>
+
+</launch>
