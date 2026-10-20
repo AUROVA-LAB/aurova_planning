@@ -10,7 +10,7 @@
     <arg name="desired_ackermann_topic" default="/desired_ackermann_state"/> <!-- The topic that communicates with clear, in degrees -->
     <arg name="model" default="rgb+depth"/>
     <arg name="inverted_axis" default="true"/>
-    <arg name="model_path" default="/catkin_ws/src/Sim2Real/log/scene4_octreeGS_safety/version_0/epoch59-val_loss0.64990.pth "/>
+    <arg name="model_path" default="/catkin_ws/src/Sim2Real/model.pth "/>
     
   
   <node pkg="sim2real_local_planner" name="agent_ros" type="agent_ros.py" output="screen">

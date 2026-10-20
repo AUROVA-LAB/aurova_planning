@@ -16,13 +16,12 @@ RUN pip uninstall -y nvidia-tensorboard nvidia-tensorboard-plugin-dlprof
 RUN pip install coremltools onnx gsutil notebook wandb>=0.12.2
 
 COPY requirements.txt .
-ENV SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL True
+ENV SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL=True
 RUN pip install --no-cache -r requirements.txt
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get install -y libsm6 libxrender1 libfontconfig1 libglib2.0-0
 RUN pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.0.0+cu117.html
-RUN pip install mmcv-full mmdet==2.27.0
 RUN pip install torch==2.0.0 torchvision==0.15.1 torchaudio==2.0.1
 
 # ROS installlation
@@ -36,8 +35,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN apt-get update && apt-get install -y apt-utils curl wget git bash-completion build-essential sudo && rm -rf /var/lib/apt/lists/*
 RUN apt-get update && apt-get install -y ros-noetic-tf && rm -rf /var/lib/apt/lists/*
 RUN mkdir -p /catkin_ws/src
-COPY . /catkin_ws/src/Sim2Real
-RUN cd /catkin_ws/src && /bin/bash -c "source /opt/ros/noetic/setup.bash; catkin_init_workspace; cd ../; catkin_make"
+COPY *.py *.launch CMakeLists.txt package.xml /catkin_ws/src/Sim2Real/
+RUN cd /catkin_ws/src && /bin/bash -c "source /opt/ros/noetic/setup.bash; catkin_init_workspace; cd ../; catkin_make -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 RUN cd /catkin_ws/src/Sim2Real && chmod +x agent_ros.py
 
 CMD export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python && cd /catkin_ws/ \
