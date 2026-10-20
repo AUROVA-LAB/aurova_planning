@@ -51,14 +51,13 @@
 
   <exec_depend>global_planning</exec_depend>
   <exec_depend>local_planning</exec_depend>
-  <exec_depend>dynamic_obstacles_prediction</exec_depend>
+  <!-- <exec_depend>dynamic_obstacles_prediction</exec_depend> -->
 
-  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
   
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <!-- Other tools can request additional information be placed here -->
-    <metapackage/>
   </export>
 
 </package>

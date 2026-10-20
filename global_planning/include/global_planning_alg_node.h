@@ -1,4 +1,4 @@
-// Copyright (C) 2010-2011 Institut de Robotica i Informatica Industrial, CSIC-UPC.
+// Copyright (C) 202019-2026 Grupo de Automática, Robótica y Visión Artificial (AUROVA), Universidad de Alicante, Spain.
 // Author 
 // All rights reserved.
 //
@@ -25,8 +25,20 @@
 #ifndef _global_planning_alg_node_h_
 #define _global_planning_alg_node_h_
 
-#include <iri_base_algorithm/iri_base_algorithm.h>
-#include "global_planning_alg.h"
+
+#include <planning/graph.h>
+#include <visualization_msgs/msg/marker.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
+#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "nav_msgs/msg/odometry.hpp"
+#include <tf2_eigen/tf2_eigen.hpp>
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <iostream>
+#include <fstream>
+#include <sstream>
 
 #define PI 3.141592
 #define MODE_PATH 1
@@ -44,7 +56,7 @@
  * \brief IRI ROS Specific Algorithm Class
  *
  */
-class GlobalPlanningAlgNode : public algorithm_base::IriBaseAlgorithm<GlobalPlanningAlgorithm>
+class GlobalPlanningAlgNode : public rclcpp::Node
 {
 private:
 
@@ -65,38 +77,38 @@ private:
   struct Pose utm_to_frame_;
   std::vector <struct StNodes> st_nodes_;
   std::vector <struct Pose> st_path_;
-  visualization_msgs::MarkerArray marker_array_;
+  visualization_msgs::msg::MarkerArray marker_array_;
   std::string frame_id_;
-  geometry_msgs::PoseWithCovarianceStamped local_goal_;
-  geometry_msgs::TransformStamped tf_to_utm_;
-  geometry_msgs::PoseStamped global_goal_bypass_;
-  tf::TransformBroadcaster broadcaster_;
-  tf::TransformListener listener_;
+  geometry_msgs::msg::PoseWithCovarianceStamped local_goal_;
+  geometry_msgs::msg::TransformStamped tf_to_utm_;
+  geometry_msgs::msg::PoseStamped global_goal_bypass_;
+  std::shared_ptr<tf2_ros::TransformBroadcaster> broadcaster_{nullptr};
+  std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
   Graph *graph_;
   std::vector<int> closed_loop_;
 
   // [publisher attributes]
-  ros::Publisher marker_pub_;
-  ros::Publisher local_goal_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr local_goal_pub_;
 
   // [subscriber attributes]
-  ros::Subscriber goal_subscriber_;
-  ros::Subscriber pose_subscriber_;
-  ros::Subscriber odom_subscriber_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr goal_subscriber_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr pose_subscriber_;
 
   /**
    * \brief callback for read pose messages
    * This message can be read from different localization sources by remapping in the
    * execution of the node.
    */
-  void cb_getPoseMsg(const nav_msgs::Odometry::ConstPtr& pose_msg);
+  void cb_getPoseMsg(const nav_msgs::msg::Odometry::SharedPtr  pose_msg);
 
   /**
    * \brief callback for read pose messages to use as a goal
    * This message can be read from different goal sources by remapping in the
    * execution of the node.
    */
-  void cb_getGoalMsg(const geometry_msgs::PoseStamped::ConstPtr& goal_msg);
+  void cb_getGoalMsg(const geometry_msgs::msg::PoseStamped::SharedPtr  goal_msg);
 
   // [service attributes]
 
@@ -106,13 +118,6 @@ private:
 
   // [action client attributes]
 
-  /**
-   * \brief config variable
-   *
-   * This variable has all the driver parameters defined in the cfg config file.
-   * Is updated everytime function config_update() is called.
-   */
-  Config config_;
 public:
   /**
    * \brief Constructor
@@ -130,7 +135,6 @@ public:
    */
   ~GlobalPlanningAlgNode(void);
 
-protected:
   /**
    * \brief main node thread
    *
@@ -145,6 +149,10 @@ protected:
    */
   void mainNodeThread(void);
 
+  std::shared_ptr<rclcpp::Rate> loop_rate;
+  double rate;
+
+protected:
   /**
    * \brief dynamic reconfigure server callback
    *
@@ -157,36 +165,28 @@ protected:
    * \param level  integer referring the level in which the configuration
    *               has been changed.
    */
-  void node_config_update(Config &config, uint32_t level);
-
-  /**
-   * \brief node add diagnostics
-   *
-   * In this abstract function additional ROS diagnostics applied to the
-   * specific algorithms may be added.
-   */
-  void addNodeDiagnostics(void);
+	rcl_interfaces::msg::SetParametersResult node_config_update(const std::vector<rclcpp::Parameter> & parameters);
   
   /**
    * \brief Parse the information in alg structure nodes to visualization marker.
    *
    * @param marker is structure for visualization.
    */
-  int parseNodesToRosMarker(visualization_msgs::MarkerArray& marker_array);
+  int parseNodesToRosMarker(visualization_msgs::msg::MarkerArray& marker_array);
   
   /**
    * \brief Parse the information in alg structure nodes to visualization marker.
    *
    * @param marker is structure for visualization.
    */
-  int parsePathToRosMarker(visualization_msgs::MarkerArray& marker_array);
+  int parsePathToRosMarker(visualization_msgs::msg::MarkerArray& marker_array);
   
   /**
    * \brief Parse the information in alg structure links to visualization marker.
    *
    * @param marker is structure for visualization.
    */
-  int parseLinksToRosMarker(visualization_msgs::MarkerArray& marker_array);
+  int parseLinksToRosMarker(visualization_msgs::msg::MarkerArray& marker_array);
   
   /**
    * \brief Get transform from /utm to /current_frame.

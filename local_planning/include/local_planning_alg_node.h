@@ -25,8 +25,23 @@
 #ifndef _local_planning_alg_node_h_
 #define _local_planning_alg_node_h_
 
-#include <iri_base_algorithm/iri_base_algorithm.h>
-#include "local_planning_alg.h"
+#include <message_filters/subscriber.h>
+#include <message_filters/time_synchronizer.h>
+#include <message_filters/synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
+#include "nav_msgs/msg/odometry.hpp"
+#include "ackermann_msgs/msg/ackermann_drive.hpp"
+#include "std_msgs/msg/float32.hpp"
+#include <pcl_conversions/pcl_conversions.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_eigen/tf2_eigen.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <iostream>
+#include <fstream>
+#include <planning/local_planning.h>
+
 
 // [publisher subscriber headers]
 
@@ -38,7 +53,7 @@
  * \brief IRI ROS Specific Algorithm Class
  *
  */
-class LocalPlanningAlgNode : public algorithm_base::IriBaseAlgorithm<LocalPlanningAlgorithm>
+class LocalPlanningAlgNode : public rclcpp::Node
 {
 private:
 
@@ -47,13 +62,14 @@ private:
   local_planning_lib::FilteringConfiguration filter_config_;
   local_planning_lib::AckermannControl ackermann_control_;
   local_planning_lib::Pose2D base_in_lidarf_;
-  ackermann_msgs::AckermannDrive ackermann_state_rad_;
-  ackermann_msgs::AckermannDrive ackermann_state_deg_;
+  ackermann_msgs::msg::AckermannDrive ackermann_state_rad_;
+  ackermann_msgs::msg::AckermannDrive ackermann_state_deg_;
   pcl::PointXYZ goal_lidar_;
   pcl::PointXYZ pos_frame_;
   std::string frame_id_;
   std::string frame_lidar_;
-  tf::TransformListener listener_;
+  std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
   std::string url_file_out_;
   bool save_data_;
   bool goal_received_;
@@ -62,48 +78,53 @@ private:
   float stop_code_;
 
   // [publisher attributes]
-  ros::Publisher obstacles_publisher_;
-  ros::Publisher ground_publisher_;
-  ros::Publisher limits_publisher_;
-  ros::Publisher local_goal_publisher_;
-  ros::Publisher collision_publisher_;
-  ros::Publisher collision_actions_publisher_;
-  ros::Publisher free_actions_publisher_;
-  ros::Publisher plane_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr obstacles_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr ground_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr limits_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr local_goal_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr collision_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr collision_actions_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr free_actions_publisher_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr plane_publisher_;
 
-  ros::Publisher ackermann_rad_publisher_;
-  ros::Publisher ackermann_deg_publisher_;
+  rclcpp::Publisher<ackermann_msgs::msg::AckermannDrive>::SharedPtr ackermann_rad_publisher_;
+  rclcpp::Publisher<ackermann_msgs::msg::AckermannDrive>::SharedPtr ackermann_deg_publisher_;
 
   // [subscriber attributes]
-  ros::Subscriber lidar_subscriber_;
-  ros::Subscriber goal_subscriber_;
-  ros::Subscriber pose_subscriber_;
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr lidar_subscriber_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr goal_subscriber_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr pose_subscriber_;
 
-  message_filters::Subscriber<sensor_msgs::PointCloud2> lidar_sync_subscriber_;
-  message_filters::Subscriber<sensor_msgs::PointCloud2> obstacle_sync_subscriber_;
-  message_filters::Subscriber<sensor_msgs::PointCloud2> ground_obstacle_sync_subscriber_;
-  message_filters::Subscriber<sensor_msgs::PointCloud2> ground_limits_sync_subscriber_;
+  message_filters::Subscriber<sensor_msgs::msg::PointCloud2> lidar_sync_subscriber_;
+  message_filters::Subscriber<sensor_msgs::msg::PointCloud2> obstacle_sync_subscriber_;
+  message_filters::Subscriber<sensor_msgs::msg::PointCloud2> ground_obstacle_sync_subscriber_;
+  message_filters::Subscriber<sensor_msgs::msg::PointCloud2> ground_limits_sync_subscriber_;
+  typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::msg::PointCloud2, sensor_msgs::msg::PointCloud2, 
+                                                sensor_msgs::msg::PointCloud2,sensor_msgs::msg::PointCloud2> MySyncPolicy;
+  std::shared_ptr<message_filters::Synchronizer<MySyncPolicy>> sync;
 
   /**
    * \brief Callback for read lidar messages.
    */
-  void cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr &scan);
-  void cb_lidarInfo(const sensor_msgs::PointCloud2::ConstPtr &scan,const sensor_msgs::PointCloud2::ConstPtr &obstacles, 
-                    const sensor_msgs::PointCloud2::ConstPtr &ground_obstacles, const sensor_msgs::PointCloud2::ConstPtr &ground_limits);
+  void cb_lidarInfo(const sensor_msgs::msg::PointCloud2::SharedPtr scan);
+  void cb_lidarInfo2(const sensor_msgs::msg::PointCloud2::ConstSharedPtr&  scan,const sensor_msgs::msg::PointCloud2::ConstSharedPtr&  obstacles, 
+                    const sensor_msgs::msg::PointCloud2::ConstSharedPtr&  ground_obstacles, const sensor_msgs::msg::PointCloud2::ConstSharedPtr&  ground_limits);
 
   /**
    * \brief callback for read pose messages to use as a goal
    * This message can be read from different goal sources by remapping in the
    * execution of the node.
    */
-  void cb_getGoalMsg(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &goal_msg);
+  void cb_getGoalMsg(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr goal_msg);
 
   /**
    * \brief callback for read pose messages
    * This message can be read from different localization sources by remapping in the
    * execution of the node.
    */
-  void cb_getPoseMsg(const nav_msgs::Odometry::ConstPtr& pose_msg);
+  void cb_getPoseMsg(const nav_msgs::msg::Odometry::SharedPtr  pose_msg);
+
+  void publishPointCloud(rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher, pcl::PointCloud<pcl::PointXYZ>::Ptr point_cloud, std::string frame);
 
   // [service attributes]
 
@@ -119,7 +140,7 @@ private:
    * This variable has all the driver parameters defined in the cfg config file.
    * Is updated everytime function config_update() is called.
    */
-  Config config_;
+
 public:
   /**
    * \brief Constructor
@@ -137,6 +158,10 @@ public:
    */
   ~LocalPlanningAlgNode(void);
 
+  void mainNodeThread(void);
+  std::shared_ptr<rclcpp::Rate> loop_rate;
+  double rate;
+
 protected:
   /**
    * \brief main node thread
@@ -150,7 +175,7 @@ protected:
    * must publish their data in this process. ROS client servers may also
    * request data to the corresponding server topics.
    */
-  void mainNodeThread(void);
+  
 
   /**
    * \brief dynamic reconfigure server callback
@@ -164,15 +189,7 @@ protected:
    * \param level  integer referring the level in which the configuration
    *               has been changed.
    */
-  void node_config_update(Config &config, uint32_t level);
-
-  /**
-   * \brief node add diagnostics
-   *
-   * In this abstract function additional ROS diagnostics applied to the
-   * specific algorithms may be added.
-   */
-  void addNodeDiagnostics(void);
+		rcl_interfaces::msg::SetParametersResult node_config_update(const std::vector<rclcpp::Parameter> & parameters);
 
   // [diagnostic functions]
 

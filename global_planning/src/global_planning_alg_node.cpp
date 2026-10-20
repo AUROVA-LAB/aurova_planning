@@ -1,7 +1,7 @@
 #include "global_planning_alg_node.h"
 
 GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
-    algorithm_base::IriBaseAlgorithm<GlobalPlanningAlgorithm>()
+    Node("globalplanning")
 {
   //init class attributes if necessary
   //this->loop_rate_ = 10; //in [Hz]
@@ -15,19 +15,32 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
   this->flag_pose_ = false;
   this->flag_goal_ = false;
   this->init_loop_ = false;
-  this->public_node_handle_.getParam("/global_planning/url_path", url_path);
-  this->public_node_handle_.getParam("/global_planning/url_file_out", this->url_file_out_);
-  this->public_node_handle_.getParam("/global_planning/save_data", this->save_data_);
-  this->public_node_handle_.getParam("/global_planning/frame_id", this->frame_id_);
-  this->public_node_handle_.getParam("/global_planning/var_x", var_x);
-  this->public_node_handle_.getParam("/global_planning/var_y", var_y);
-  this->public_node_handle_.getParam("/global_planning/var_z", var_z);
-  this->public_node_handle_.getParam("/global_planning/var_w", var_w);
-  this->public_node_handle_.getParam("/global_planning/type_dist", type_dist);
-  this->public_node_handle_.getParam("/global_planning/rad_reached", this->rad_reached_);
-  this->public_node_handle_.getParam("/global_planning/operation_mode", this->operation_mode_);
-  this->public_node_handle_.getParam("/global_planning/stop_code", this->stop_code_);
-  this->public_node_handle_.getParam("/global_planning/closed_loop", string_closed_loop);
+  this->declare_parameter("url_path","");
+  this->get_parameter("url_path", url_path);
+  this->declare_parameter("url_file_out","");
+  this->get_parameter("url_file_out", this->url_file_out_);
+  this->declare_parameter("save_data",false);
+  this->get_parameter("save_data", this->save_data_);
+  this->declare_parameter("frame_id","map");
+  this->get_parameter("frame_id", this->frame_id_);
+  this->declare_parameter("var_x",0.2);
+  this->get_parameter("var_x", var_x);
+  this->declare_parameter("var_y",0.01);
+  this->get_parameter("var_y", var_y);
+  this->declare_parameter("var_z",100.0);
+  this->get_parameter("var_z", var_z);
+  this->declare_parameter("var_w",0.1);
+  this->get_parameter("var_w", var_w);
+  this->declare_parameter("type_dist","E");
+  this->get_parameter("type_dist", type_dist);
+  this->declare_parameter("rad_reached",2.0);
+  this->get_parameter("rad_reached", this->rad_reached_);
+  this->declare_parameter("operation_mode",1);
+  this->get_parameter("operation_mode", this->operation_mode_);
+  this->declare_parameter("stop_code",10.0);
+  this->get_parameter("stop_code", this->stop_code_);
+  this->declare_parameter("closed_loop","");
+  this->get_parameter("closed_loop", string_closed_loop);
   std::istringstream parse_closed_loop(string_closed_loop);
   int number;
   while (parse_closed_loop>>number)
@@ -68,15 +81,19 @@ GlobalPlanningAlgNode::GlobalPlanningAlgNode(void) :
   //this->fromUtmTransform();
 
   // [init publishers]
-  this->marker_pub_ = this->public_node_handle_.advertise < visualization_msgs::MarkerArray > ("/visualization", 1);
-  this->local_goal_pub_ = this->public_node_handle_.advertise < geometry_msgs::PoseWithCovarianceStamped
-      > ("/semilocal_goal", 1);
+  this->marker_pub_ = this->create_publisher <visualization_msgs::msg::MarkerArray> ("/visualization", 1);
+  this->local_goal_pub_ = this->create_publisher <geometry_msgs::msg::PoseWithCovarianceStamped> ("/semilocal_goal", 1);
 
   // [init subscribers]
-  this->pose_subscriber_ = this->public_node_handle_.subscribe("/pose_plot", 1, &GlobalPlanningAlgNode::cb_getPoseMsg,
-                                                               this);
-  this->goal_subscriber_ = this->public_node_handle_.subscribe("/move_base_simple/goal", 1,
-                                                               &GlobalPlanningAlgNode::cb_getGoalMsg, this);
+  this->pose_subscriber_ = this->create_subscription<nav_msgs::msg::Odometry>("/pose_plot", 1, 
+                              std::bind(&GlobalPlanningAlgNode::cb_getPoseMsg,this, std::placeholders::_1));
+  this->goal_subscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>("/move_base_simple/goal", 1,
+                              std::bind(&GlobalPlanningAlgNode::cb_getGoalMsg, this, std::placeholders::_1));
+
+  tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+  tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_buffer_);
+  broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(this);
+
 
   // [init services]
 
@@ -120,40 +137,41 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
 
         ///////////////////////////////////////////////////////////
         ///// TRANSFORM TO TF FARME
-        geometry_msgs::PointStamped node_tf;
-        geometry_msgs::PointStamped node_utm;
+        geometry_msgs::msg::PointStamped node_tf;
+        geometry_msgs::msg::PointStamped node_utm;
         node_utm.header.frame_id = "utm";
-        node_utm.header.stamp = ros::Time(0); //ros::Time::now();
+        node_utm.header.stamp = rclcpp::Time(0); //this->now();
         node_utm.point.x = this->st_path_[index_path_].coordinates[0];
         node_utm.point.y = this->st_path_[index_path_].coordinates[1];
         node_utm.point.z = 0.0;
         try
         {
-          this->listener_.transformPoint(this->frame_id_, node_utm, node_tf);
+          this->tf_buffer_->transform( node_utm,  node_tf, this->frame_id_);
+
         }
-        catch (tf::TransformException &ex)
+        catch (tf2::TransformException &ex)
         {
-          ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+          RCLCPP_WARN(this->get_logger(),"[draw_frames] TF exception:\n%s", ex.what());
           return;
         }
         double yaw = this->getYawFromPath(index_path_);
-        tf::Quaternion quat_utm = tf::createQuaternionFromRPY(0, 0, yaw);
-        geometry_msgs::QuaternionStamped orient_tf;
-        geometry_msgs::QuaternionStamped orient_utm;
+        tf2::Quaternion quat_utm; quat_utm.setRPY(0, 0, yaw);
+        geometry_msgs::msg::QuaternionStamped orient_tf;
+        geometry_msgs::msg::QuaternionStamped orient_utm;
         orient_utm.header.frame_id = "utm";
-        orient_utm.header.stamp = ros::Time(0);
+        orient_utm.header.stamp = rclcpp::Time(0);
         orient_utm.quaternion.x = quat_utm[0];
         orient_utm.quaternion.y = quat_utm[1];
         orient_utm.quaternion.z = quat_utm[2];
         orient_utm.quaternion.w = quat_utm[3];
         try
         {
-          this->listener_.transformQuaternion(this->frame_id_, orient_utm, orient_tf);
+          this->tf_buffer_->transform(orient_utm, orient_tf, this->frame_id_);
 
         }
-        catch (tf::TransformException &ex)
+        catch (tf2::TransformException &ex)
         {
-          ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+          RCLCPP_WARN(this->get_logger(),"[draw_frames] TF exception:\n%s", ex.what());
           return;
         }
         ///////////////////////////////////////////////////////////
@@ -176,7 +194,7 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
           this->local_goal_.pose.pose.position.z = this->stop_code_;
         }
 
-        this->local_goal_pub_.publish(this->local_goal_);
+        this->local_goal_pub_->publish(this->local_goal_);
       }
       break;
 
@@ -205,20 +223,21 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
 
         ///////////////////////////////////////////////////////////
         ///// TRANSFORM TO TF FARME
-        geometry_msgs::PointStamped node_tf;
-        geometry_msgs::PointStamped node_utm;
+        geometry_msgs::msg::PointStamped node_tf;
+        geometry_msgs::msg::PointStamped node_utm;
         node_utm.header.frame_id = "utm";
-        node_utm.header.stamp = ros::Time(0); //ros::Time::now();
+        node_utm.header.stamp = rclcpp::Time(0); //this->now();
         node_utm.point.x = this->st_nodes_[this->closed_loop_[this->index_loop]].coordinates[0];
         node_utm.point.y = this->st_nodes_[this->closed_loop_[this->index_loop]].coordinates[1];
         node_utm.point.z = 0.0;
         try
         {
-          this->listener_.transformPoint(this->frame_id_, node_utm, node_tf);
+          this->tf_buffer_->transform( node_utm,  node_tf, this->frame_id_);
+
         }
-        catch (tf::TransformException &ex)
+        catch (tf2::TransformException &ex)
         {
-          ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+          RCLCPP_WARN(this->get_logger(),"[draw_frames] TF exception:\n%s", ex.what());
           return;
         }
         // no yaw
@@ -253,7 +272,7 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
           }
         }
 
-        this->local_goal_pub_.publish(this->local_goal_);
+        this->local_goal_pub_->publish(this->local_goal_);
       }
       break;
     case MODE_BYPASS:
@@ -272,7 +291,7 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
         this->local_goal_.pose.covariance[14] = this->global_goal_.matrix[2][2];
         this->local_goal_.pose.covariance[35] = this->global_goal_.matrix[3][3];
 
-        this->local_goal_pub_.publish(this->local_goal_);
+        this->local_goal_pub_->publish(this->local_goal_);
       }
       break;
 
@@ -291,58 +310,59 @@ void GlobalPlanningAlgNode::mainNodeThread(void)
 
   // [publish messages]
   //this->tf_to_utm_.header.seq = this->tf_to_utm_.header.seq + 1;
-  //this->tf_to_utm_.header.stamp = ros::Time::now();
-  //this->broadcaster_.sendTransform(this->tf_to_utm_);
-  this->marker_pub_.publish(this->marker_array_);
+  //this->tf_to_utm_.header.stamp = this->now();
+  //this->broadcaster_->sendTransform(this->tf_to_utm_);
+  this->marker_pub_->publish(this->marker_array_);
 }
 
 /*  [subscriber callbacks] */
-void GlobalPlanningAlgNode::cb_getPoseMsg(const nav_msgs::Odometry::ConstPtr& pose_msg)
+void GlobalPlanningAlgNode::cb_getPoseMsg(const nav_msgs::msg::Odometry::SharedPtr  pose_msg)
 {
-  //this->alg_.lock();
+
 
   ///////////////////////////////////////////////////////////
   ///// TRANSFORM TO TF FARME
-  geometry_msgs::PointStamped node_tf;
-  geometry_msgs::PointStamped node_utm;
+  geometry_msgs::msg::PointStamped node_tf;
+  geometry_msgs::msg::PointStamped node_utm;
   node_tf.header.frame_id = this->frame_id_;
-  node_tf.header.stamp = ros::Time(0); //ros::Time::now();
+  node_tf.header.stamp = rclcpp::Time(0); //this->now();
   node_tf.point.x = pose_msg->pose.pose.position.x;
   node_tf.point.y = pose_msg->pose.pose.position.y;
   node_tf.point.z = pose_msg->pose.pose.position.z;
   try
   {
-    this->listener_.transformPoint("utm", node_tf, node_utm);
+    this->tf_buffer_->transform( node_tf,  node_utm, "utm");
+
 
   }
-  catch (tf::TransformException &ex)
+  catch (tf2::TransformException &ex)
   {
-    ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+    RCLCPP_WARN(this->get_logger(),"[draw_frames] TF exception:\n%s", ex.what());
     return;
   }
 
-  geometry_msgs::QuaternionStamped orient_tf;
-  geometry_msgs::QuaternionStamped orient_utm;
+  geometry_msgs::msg::QuaternionStamped orient_tf;
+  geometry_msgs::msg::QuaternionStamped orient_utm;
   orient_tf.header.frame_id = this->frame_id_;
-  orient_tf.header.stamp = ros::Time(0);
+  orient_tf.header.stamp = rclcpp::Time(0);
   orient_tf.quaternion.x = pose_msg->pose.pose.orientation.x;
   orient_tf.quaternion.y = pose_msg->pose.pose.orientation.y;
   orient_tf.quaternion.z = pose_msg->pose.pose.orientation.z;
   orient_tf.quaternion.w = pose_msg->pose.pose.orientation.w;
   try
   {
-    this->listener_.transformQuaternion("utm", orient_tf, orient_utm);
+    this->tf_buffer_->transform(orient_tf, orient_utm, "utm");
 
   }
-  catch (tf::TransformException &ex)
+  catch (tf2::TransformException &ex)
   {
-    ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+    RCLCPP_WARN(this->get_logger(),"[draw_frames] TF exception:\n%s", ex.what());
     return;
   }
   double roll, pitch, yaw;
-  tf::Quaternion q_pose(orient_utm.quaternion.x, orient_utm.quaternion.y, orient_utm.quaternion.z,
+  tf2::Quaternion q_pose(orient_utm.quaternion.x, orient_utm.quaternion.y, orient_utm.quaternion.z,
                         orient_utm.quaternion.w);
-  tf::Matrix3x3 m_pose(q_pose);
+  tf2::Matrix3x3 m_pose(q_pose);
   m_pose.getRPY(roll, pitch, yaw);
   yaw = (yaw * 180.0) / PI;
 ///////////////////////////////////////////////////////////
@@ -359,18 +379,18 @@ void GlobalPlanningAlgNode::cb_getPoseMsg(const nav_msgs::Odometry::ConstPtr& po
 
   this->flag_pose_ = true;
 
-  //this->alg_.unlock();
+
 }
 
-void GlobalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseStamped::ConstPtr &goal_msg)
+void GlobalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::msg::PoseStamped::SharedPtr goal_msg)
 {
-  //this->alg_.lock();
+
 
   this->init_loop_ = false;
 
   if (this->operation_mode_ == MODE_LOOP){
     std::string string_closed_loop;
-    this->public_node_handle_.getParam("/global_planning/closed_loop", string_closed_loop);
+    this->get_parameter("closed_loop", string_closed_loop);
     std::istringstream parse_closed_loop(string_closed_loop);
     int number;
     this->closed_loop_.clear();
@@ -379,46 +399,47 @@ void GlobalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseStamped::Cons
   }
   ///////////////////////////////////////////////////////////
   ///// TRANSFORM TO TF FARME
-  geometry_msgs::PointStamped node_tf;
-  geometry_msgs::PointStamped node_utm;
+  geometry_msgs::msg::PointStamped node_tf;
+  geometry_msgs::msg::PointStamped node_utm;
   node_tf.header.frame_id = this->frame_id_;
-  node_tf.header.stamp = ros::Time(0); //ros::Time::now();
+  node_tf.header.stamp = rclcpp::Time(0); //this->now();
   node_tf.point.x = goal_msg->pose.position.x;
   node_tf.point.y = goal_msg->pose.position.y;
   node_tf.point.z = goal_msg->pose.position.z;
   try
   {
-    this->listener_.transformPoint("utm", node_tf, node_utm);
+    this->tf_buffer_->transform( node_tf,  node_utm, "utm");
+
 
   }
-  catch (tf::TransformException &ex)
+  catch (tf2::TransformException &ex)
   {
-    ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+    RCLCPP_WARN(this->get_logger(),"[draw_frames] TF exception:\n%s", ex.what());
     return;
   }
 
-  geometry_msgs::QuaternionStamped orient_tf;
-  geometry_msgs::QuaternionStamped orient_utm;
+  geometry_msgs::msg::QuaternionStamped orient_tf;
+  geometry_msgs::msg::QuaternionStamped orient_utm;
   orient_tf.header.frame_id = this->frame_id_;
-  orient_tf.header.stamp = ros::Time(0);
+  orient_tf.header.stamp = rclcpp::Time(0);
   orient_tf.quaternion.x = goal_msg->pose.orientation.x;
   orient_tf.quaternion.y = goal_msg->pose.orientation.y;
   orient_tf.quaternion.z = goal_msg->pose.orientation.z;
   orient_tf.quaternion.w = goal_msg->pose.orientation.w;
   try
   {
-    this->listener_.transformQuaternion("utm", orient_tf, orient_utm);
+    this->tf_buffer_->transform(orient_tf, orient_utm, "utm");
 
   }
-  catch (tf::TransformException &ex)
+  catch (tf2::TransformException &ex)
   {
-    ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+    RCLCPP_WARN(this->get_logger(),"[draw_frames] TF exception:\n%s", ex.what());
     return;
   }
   double roll, pitch, yaw;
-  tf::Quaternion q_pose(orient_utm.quaternion.x, orient_utm.quaternion.y, orient_utm.quaternion.z,
+  tf2::Quaternion q_pose(orient_utm.quaternion.x, orient_utm.quaternion.y, orient_utm.quaternion.z,
                         orient_utm.quaternion.w);
-  tf::Matrix3x3 m_pose(q_pose);
+  tf2::Matrix3x3 m_pose(q_pose);
   m_pose.getRPY(roll, pitch, yaw);
   yaw = (yaw * 180.0) / PI;
 ///////////////////////////////////////////////////////////
@@ -439,18 +460,18 @@ void GlobalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseStamped::Cons
 
   if (this->flag_pose_ && this->operation_mode_ == MODE_PATH)
   {
-    visualization_msgs::MarkerArray marker_array;
-    ROS_INFO("******** pre-execution ********");
+    visualization_msgs::msg::MarkerArray marker_array;
+    RCLCPP_INFO(this->get_logger(),"******** pre-execution ********");
     this->st_path_ = this->graph_->getPathPoses(this->pose_, this->global_goal_);
-    ROS_INFO("******** pos-execution ********");
+    RCLCPP_INFO(this->get_logger(),"******** pos-execution ********");
     this->parsePathToRosMarker(marker_array);
-    this->marker_pub_.publish(marker_array);
+    this->marker_pub_->publish(marker_array);
     this->index_path_ = 0;
   }
 
   this->flag_goal_ = true;
 
-  //this->alg_.unlock();
+
 }
 
 /*  [service callbacks] */
@@ -459,28 +480,35 @@ void GlobalPlanningAlgNode::cb_getGoalMsg(const geometry_msgs::PoseStamped::Cons
 
 /*  [action requests] */
 
-void GlobalPlanningAlgNode::node_config_update(Config &config, uint32_t level)
+rcl_interfaces::msg::SetParametersResult GlobalPlanningAlgNode::node_config_update(const std::vector<rclcpp::Parameter> &parameters)
 {
-  this->alg_.lock();
-  this->config_ = config;
-  this->alg_.unlock();
+  double rate;
+  this->get_parameter("rate", rate);
+  if(rate!=this->rate)
+  {
+    this->rate = rate;
+    this->loop_rate = std::make_shared<rclcpp::Rate>(this->rate);
+  }
+  this->get_parameter("rad_reached", this->rad_reached_);
+  this->get_parameter("operation_mode", this->operation_mode_);
+
+  rcl_interfaces::msg::SetParametersResult result;
+  result.successful = true;
+  result.reason = "success";
+  return result;
 }
 
-void GlobalPlanningAlgNode::addNodeDiagnostics(void)
-{
-}
-
-int GlobalPlanningAlgNode::parseNodesToRosMarker(visualization_msgs::MarkerArray &marker_array)
+int GlobalPlanningAlgNode::parseNodesToRosMarker(visualization_msgs::msg::MarkerArray &marker_array)
 {
   int i;
 
-  visualization_msgs::Marker marker;
-  visualization_msgs::Marker text;
+  visualization_msgs::msg::Marker marker;
+  visualization_msgs::msg::Marker text;
 
   marker.header.frame_id = this->frame_id_;
-  marker.header.stamp = ros::Time::now();
+  marker.header.stamp = this->now();
   text.header.frame_id = this->frame_id_;
-  text.header.stamp = ros::Time::now();
+  text.header.stamp = this->now();
 
 // Set the namespace and id for this marker.  This serves to create a unique ID
 // Any marker sent with the same namespace and id will overwrite the old one
@@ -488,12 +516,12 @@ int GlobalPlanningAlgNode::parseNodesToRosMarker(visualization_msgs::MarkerArray
   text.ns = "text";
 
 // Set the marker type.  Initially this is CUBE, and cycles between that and SPHERE, ARROW, and CYLINDER
-  marker.type = visualization_msgs::Marker::SPHERE;
-  text.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+  marker.type = visualization_msgs::msg::Marker::SPHERE;
+  text.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
 
 // Set the marker action.  Options are ADD, DELETE, and new in ROS Indigo: 3 (DELETEALL)
-  marker.action = visualization_msgs::Marker::ADD;
-  text.action = visualization_msgs::Marker::ADD;
+  marker.action = visualization_msgs::msg::Marker::ADD;
+  text.action = visualization_msgs::msg::Marker::ADD;
 
 // Set the scale of the marker -- 1x1x1 here means 1m on a side
   marker.scale.x = 0.7;
@@ -515,32 +543,37 @@ int GlobalPlanningAlgNode::parseNodesToRosMarker(visualization_msgs::MarkerArray
   text.color.b = 0.0f;
   text.color.a = 0.7;
 
-  marker.lifetime = ros::Duration();
-  text.lifetime = ros::Duration();
+  marker.lifetime = rclcpp::Duration(0,0);
+  text.lifetime = rclcpp::Duration(0,0);
 
   std::ostringstream out_nodes; // File out stream
 
-  geometry_msgs::PointStamped node_tf;
-  geometry_msgs::PointStamped node_utm;
+  geometry_msgs::msg::PointStamped node_tf;
+  geometry_msgs::msg::PointStamped node_utm;
   node_utm.header.frame_id = "utm";
-  node_utm.header.stamp = ros::Time(0); //ros::Time::now();
+  node_utm.header.stamp = rclcpp::Time(0); //this->now();
   int size_n = this->st_nodes_.size();
+  std::cout << "Nodes;\n";
   for (i = 0; i < size_n; i++)
   {
 
     node_utm.point.x = this->st_nodes_[i].coordinates[0];
     node_utm.point.y = this->st_nodes_[i].coordinates[1];
     node_utm.point.z = 0.0;
-    //node_utm.transform.rotation = tf::createQuaternionMsgFromYaw(this->st_nodes_[1].coordinates[3]);
+    tf2::Quaternion q;
+    q.setRPY(0, 0,this->st_nodes_[1].coordinates[3]);
+        //node_utm.transform.rotation = tf2::toMSG(q);
+
 
     try
     {
-      this->listener_.transformPoint(this->frame_id_, node_utm, node_tf);
+      this->tf_buffer_->transform( node_utm,  node_tf, this->frame_id_);
+
 
     }
-    catch (tf::TransformException &ex)
+    catch (tf2::TransformException &ex)
     {
-      ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+      RCLCPP_WARN(this->get_logger(),"[draw_frames] TF exception:\n%s", ex.what());
       return 0;
     }
 
@@ -564,7 +597,7 @@ int GlobalPlanningAlgNode::parseNodesToRosMarker(visualization_msgs::MarkerArray
     text.id = this->st_nodes_[i].id;
     marker_array.markers.push_back(marker);
     marker_array.markers.push_back(text);
-
+    std::cout << this->st_nodes_[i].id << ", " << node_tf.point.x << ", " << node_tf.point.y << "\n";
     if (this->save_data_)
       out_nodes << this->st_nodes_[i].id << ", " << node_tf.point.x << ", " << node_tf.point.y << "\n";
 
@@ -585,24 +618,24 @@ int GlobalPlanningAlgNode::parseNodesToRosMarker(visualization_msgs::MarkerArray
   return 0;
 }
 
-int GlobalPlanningAlgNode::parsePathToRosMarker(visualization_msgs::MarkerArray &marker_array)
+int GlobalPlanningAlgNode::parsePathToRosMarker(visualization_msgs::msg::MarkerArray &marker_array)
 {
   int i;
 
-  visualization_msgs::Marker marker;
+  visualization_msgs::msg::Marker marker;
 
   marker.header.frame_id = this->frame_id_;
-  marker.header.stamp = ros::Time::now();
+  marker.header.stamp = this->now();
 
 // Set the namespace and id for this marker.  This serves to create a unique ID
 // Any marker sent with the same namespace and id will overwrite the old one
   marker.ns = "path";
 
 // Set the marker type.  Initially this is CUBE, and cycles between that and SPHERE, ARROW, and CYLINDER
-  marker.type = visualization_msgs::Marker::SPHERE;
+  marker.type = visualization_msgs::msg::Marker::SPHERE;
 
 // Set the marker action.  Options are ADD, DELETE, and new in ROS Indigo: 3 (DELETEALL)
-  marker.action = visualization_msgs::Marker::ADD;
+  marker.action = visualization_msgs::msg::Marker::ADD;
 
 // Set the scale of the marker -- 1x1x1 here means 1m on a side
   marker.scale.x = 0.6;
@@ -615,12 +648,12 @@ int GlobalPlanningAlgNode::parsePathToRosMarker(visualization_msgs::MarkerArray 
   marker.color.b = 1.0f;
   marker.color.a = 1.0;
 
-  marker.lifetime = ros::Duration();
+  marker.lifetime = rclcpp::Duration(0,0);
 
-  geometry_msgs::PointStamped node_tf;
-  geometry_msgs::PointStamped node_utm;
+  geometry_msgs::msg::PointStamped node_tf;
+  geometry_msgs::msg::PointStamped node_utm;
   node_utm.header.frame_id = "utm";
-  node_utm.header.stamp = ros::Time(0); //ros::Time::now();
+  node_utm.header.stamp = rclcpp::Time(0); //this->now();
   int size_n = this->st_path_.size();
   for (i = 0; i < size_n; i++)
   {
@@ -629,12 +662,13 @@ int GlobalPlanningAlgNode::parsePathToRosMarker(visualization_msgs::MarkerArray 
     node_utm.point.z = 0.0;
     try
     {
-      this->listener_.transformPoint(this->frame_id_, node_utm, node_tf);
+      this->tf_buffer_->transform( node_utm,  node_tf, this->frame_id_);
+
 
     }
-    catch (tf::TransformException &ex)
+    catch (tf2::TransformException &ex)
     {
-      ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+      RCLCPP_WARN(this->get_logger(),"[draw_frames] TF exception:\n%s", ex.what());
       return 0;
     }
 
@@ -655,14 +689,14 @@ int GlobalPlanningAlgNode::parsePathToRosMarker(visualization_msgs::MarkerArray 
   return 0;
 }
 
-int GlobalPlanningAlgNode::parseLinksToRosMarker(visualization_msgs::MarkerArray &marker_array)
+int GlobalPlanningAlgNode::parseLinksToRosMarker(visualization_msgs::msg::MarkerArray &marker_array)
 {
   int i;
 
-  visualization_msgs::Marker marker;
+  visualization_msgs::msg::Marker marker;
 
   marker.header.frame_id = this->frame_id_;
-  marker.header.stamp = ros::Time::now();
+  marker.header.stamp = this->now();
 
 // Set the namespace and id for this marker.  This serves to create a unique ID
 // Any marker sent with the same namespace and id will overwrite the old one
@@ -670,10 +704,10 @@ int GlobalPlanningAlgNode::parseLinksToRosMarker(visualization_msgs::MarkerArray
   marker.id = 0;
 
 // Set the marker type.  Initially this is CUBE, and cycles between that and SPHERE, ARROW, and CYLINDER
-  marker.type = visualization_msgs::Marker::LINE_LIST;
+  marker.type = visualization_msgs::msg::Marker::LINE_LIST;
 
 // Set the marker action.  Options are ADD, DELETE, and new in ROS Indigo: 3 (DELETEALL)
-  marker.action = visualization_msgs::Marker::ADD;
+  marker.action = visualization_msgs::msg::Marker::ADD;
 
 // Set the scale of the marker
   marker.scale.x = 0.5;
@@ -684,21 +718,21 @@ int GlobalPlanningAlgNode::parseLinksToRosMarker(visualization_msgs::MarkerArray
   marker.color.b = 0.0f;
   marker.color.a = 1.0;
 
-  marker.lifetime = ros::Duration();
+  marker.lifetime = rclcpp::Duration(0,0);
 
   std::ostringstream out_links; // File out stream
 
-  geometry_msgs::PointStamped node_tf;
-  geometry_msgs::PointStamped node_utm;
+  geometry_msgs::msg::PointStamped node_tf;
+  geometry_msgs::msg::PointStamped node_utm;
   node_utm.header.frame_id = "utm";
-  node_utm.header.stamp = ros::Time(0); //ros::Time::now();
+  node_utm.header.stamp = rclcpp::Time(0); //this->now();
   int size_n = this->st_nodes_.size();
   marker.id = size_n;
   for (i = 0; i < size_n; i++)
   {
 
     int nl = this->st_nodes_[i].nodesConnected.size();
-    geometry_msgs::Point point;
+    geometry_msgs::msg::Point point;
     for (int j = 0; j < nl; j++)
     {
 
@@ -707,12 +741,13 @@ int GlobalPlanningAlgNode::parseLinksToRosMarker(visualization_msgs::MarkerArray
       node_utm.point.z = 0.0;
       try
       {
-        this->listener_.transformPoint(this->frame_id_, node_utm, node_tf);
+        this->tf_buffer_->transform( node_utm,  node_tf, this->frame_id_);
+
 
       }
-      catch (tf::TransformException &ex)
+      catch (tf2::TransformException &ex)
       {
-        ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+        RCLCPP_WARN(this->get_logger(),"[draw_frames] TF exception:\n%s", ex.what());
         return 0;
       }
       point.x = node_tf.point.x;
@@ -730,12 +765,13 @@ int GlobalPlanningAlgNode::parseLinksToRosMarker(visualization_msgs::MarkerArray
       node_utm.point.z = 0.0;
       try
       {
-        this->listener_.transformPoint(this->frame_id_, node_utm, node_tf);
+        this->tf_buffer_->transform( node_utm,  node_tf, this->frame_id_);
+
 
       }
-      catch (tf::TransformException &ex)
+      catch (tf2::TransformException &ex)
       {
-        ROS_WARN("[draw_frames] TF exception:\n%s", ex.what());
+        RCLCPP_WARN(this->get_logger(),"[draw_frames] TF exception:\n%s", ex.what());
         return 0;
       }
       point.x = node_tf.point.x;
@@ -747,8 +783,8 @@ int GlobalPlanningAlgNode::parseLinksToRosMarker(visualization_msgs::MarkerArray
       if (this->save_data_)
         out_links << ", " << id_link << ", " << node_tf.point.x << ", " << node_tf.point.y << "\n";
     }
-    marker_array.markers.push_back(marker);
   }
+  marker_array.markers.push_back(marker);
 
   if (this->save_data_)
   {
@@ -770,13 +806,16 @@ void GlobalPlanningAlgNode::fromUtmTransform(void)
 
   this->tf_to_utm_.header.frame_id = "utm";
   this->tf_to_utm_.child_frame_id = this->frame_id_;
-  this->tf_to_utm_.header.stamp = ros::Time::now();
+  this->tf_to_utm_.header.stamp = this->now();
   this->tf_to_utm_.transform.translation.x = this->st_nodes_[0].coordinates[0];
   this->tf_to_utm_.transform.translation.y = this->st_nodes_[0].coordinates[1];
   this->tf_to_utm_.transform.translation.z = this->st_nodes_[0].coordinates[2];
-  this->tf_to_utm_.transform.rotation = tf::createQuaternionMsgFromYaw(PI / 2.0);
+  tf2::Quaternion q;
+  q.setRPY(0, 0,PI / 2.0);
+    this->tf_to_utm_.transform.rotation = tf2::toMsg(q);
 
-  this->broadcaster_.sendTransform(this->tf_to_utm_);
+
+  this->broadcaster_->sendTransform(this->tf_to_utm_);
 
   return;
 }
@@ -803,5 +842,16 @@ double GlobalPlanningAlgNode::getYawFromPath(int index_path)
 /* main function */
 int main(int argc, char *argv[])
 {
-  return algorithm_base::main < GlobalPlanningAlgNode > (argc, argv, "global_planning_alg_node");
+	rclcpp::init(argc, argv);
+	auto node = std::make_shared< GlobalPlanningAlgNode >();
+	node->rate = node->declare_parameter<double>("rate", 10.0);
+	node->loop_rate = std::make_shared<rclcpp::Rate>(node->rate);
+
+	while (rclcpp::ok()) {
+		node->mainNodeThread();
+		rclcpp::spin_some(node);
+		node->loop_rate->sleep();
+	}
+	rclcpp::shutdown();
+	return 0;
 }
