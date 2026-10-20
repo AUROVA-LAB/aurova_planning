@@ -21,7 +21,7 @@ docker build -t aurova_sim2real .
 For using the neural network in the real robot, build the Docker image with ROS:
 ```
 cd PATH/TO/CATKIN_WS/src/aurova_planning/Sim2Real_local_planner
-docker build -f Dockerfile.ros -t aurova_sim2real .
+docker build -f Dockerfile.ros -t aurova_sim2real:ros .
 ```
 
 **Follow the instructions of app_Sim2Real for dataset generation, training, usage and evaluation.**
