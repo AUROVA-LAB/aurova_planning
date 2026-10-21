@@ -124,7 +124,8 @@ private:
    */
   void cb_getPoseMsg(const nav_msgs::msg::Odometry::SharedPtr  pose_msg);
 
-  void publishPointCloud(rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher, pcl::PointCloud<pcl::PointXYZ>::Ptr point_cloud, std::string frame);
+  void publishPointCloud(rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher, pcl::PointCloud<pcl::PointXYZ>::Ptr point_cloud, 
+      std::string frame, rclcpp::Time now);
 
   // [service attributes]
 

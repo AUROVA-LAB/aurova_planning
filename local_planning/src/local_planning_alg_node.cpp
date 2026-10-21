@@ -212,9 +212,9 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::msg::PointCloud2::Sha
                                               *obstacles_pcl, *limits_pcl);
 
 
-    this->publishPointCloud(this->obstacles_publisher_, scan_pcl_filt, this->frame_lidar_);
-    this->publishPointCloud(this->ground_publisher_, obstacles_pcl, this->frame_lidar_);
-    this->publishPointCloud(this->limits_publisher_, limits_pcl, this->frame_lidar_);
+    this->publishPointCloud(this->obstacles_publisher_, scan_pcl_filt, this->frame_lidar_, scan->header.stamp);
+    this->publishPointCloud(this->ground_publisher_, obstacles_pcl, this->frame_lidar_, scan->header.stamp);
+    this->publishPointCloud(this->limits_publisher_, limits_pcl, this->frame_lidar_, scan->header.stamp);
     //////////////////////////////////////////////////
 
     //////////////////////////////////////////////////
@@ -229,7 +229,7 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::msg::PointCloud2::Sha
         + this->base_in_lidarf_.x;
     local_path->points[local_path->points.size() - 2].y = local_path->points[local_path->points.size() - 2].y
         + this->base_in_lidarf_.y;
-    this->publishPointCloud(this->local_goal_publisher_, local_path, this->frame_lidar_);
+    this->publishPointCloud(this->local_goal_publisher_, local_path, this->frame_lidar_, scan->header.stamp);
     //////////////////////////////////////////////////
 
     //////////////////////////////////////////////////
@@ -242,9 +242,9 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::msg::PointCloud2::Sha
                                                     this->base_in_lidarf_, *scan_pcl_filt, *collision_risk,
                                                     *collision_actions, *free_actions, this->ackermann_control_);
 
-    this->publishPointCloud(this->collision_publisher_, collision_risk, this->frame_lidar_);
-    this->publishPointCloud(this->collision_actions_publisher_, collision_actions, this->frame_lidar_);
-    this->publishPointCloud(this->free_actions_publisher_, free_actions, this->frame_lidar_);
+    this->publishPointCloud(this->collision_publisher_, collision_risk, this->frame_lidar_, scan->header.stamp);
+    this->publishPointCloud(this->collision_actions_publisher_, collision_actions, this->frame_lidar_, scan->header.stamp);
+    this->publishPointCloud(this->free_actions_publisher_, free_actions, this->frame_lidar_, scan->header.stamp);
 
 
     this->ackermann_state_rad_.steering_angle = this->ackermann_control_.steering;
@@ -361,7 +361,7 @@ void LocalPlanningAlgNode::cb_lidarInfo(const sensor_msgs::msg::PointCloud2::Sha
           plane_adj->points.push_back(point_p);
         }
       }
-      this->publishPointCloud(this->plane_publisher_, plane_adj, this->frame_lidar_);
+      this->publishPointCloud(this->plane_publisher_, plane_adj, this->frame_lidar_, scan->header.stamp);
     }
 
   }
@@ -411,7 +411,7 @@ void LocalPlanningAlgNode::cb_lidarInfo2(const sensor_msgs::msg::PointCloud2::Co
         + this->base_in_lidarf_.x;
     local_path->points[local_path->points.size() - 2].y = local_path->points[local_path->points.size() - 2].y
         + this->base_in_lidarf_.y;
-    this->publishPointCloud(this->local_goal_publisher_, local_path, this->frame_lidar_);
+    this->publishPointCloud(this->local_goal_publisher_, local_path, this->frame_lidar_, scan->header.stamp);
     //////////////////////////////////////////////////
 
     //////////////////////////////////////////////////
@@ -424,9 +424,9 @@ void LocalPlanningAlgNode::cb_lidarInfo2(const sensor_msgs::msg::PointCloud2::Co
                                                     this->base_in_lidarf_, scan_pcl_filt, *collision_risk,
                                                     *collision_actions, *free_actions, this->ackermann_control_);
 
-    this->publishPointCloud(this->collision_publisher_, collision_risk, this->frame_lidar_);
-    this->publishPointCloud(this->collision_actions_publisher_, collision_actions, this->frame_lidar_);
-    this->publishPointCloud(this->free_actions_publisher_, free_actions, this->frame_lidar_);
+    this->publishPointCloud(this->collision_publisher_, collision_risk, this->frame_lidar_, scan->header.stamp);
+    this->publishPointCloud(this->collision_actions_publisher_, collision_actions, this->frame_lidar_, scan->header.stamp);
+    this->publishPointCloud(this->free_actions_publisher_, free_actions, this->frame_lidar_, scan->header.stamp);
 
     this->ackermann_state_rad_.steering_angle = this->ackermann_control_.steering;
     this->ackermann_state_rad_.speed = this->ackermann_control_.velocity;
@@ -615,13 +615,14 @@ void LocalPlanningAlgNode::cb_getPoseMsg(const nav_msgs::msg::Odometry::SharedPt
 
 }
 
-void LocalPlanningAlgNode::publishPointCloud(rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher, pcl::PointCloud<pcl::PointXYZ>::Ptr point_cloud, std::string frame)
+void LocalPlanningAlgNode::publishPointCloud(rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher, 
+    pcl::PointCloud<pcl::PointXYZ>::Ptr point_cloud, std::string frame, rclcpp::Time now)
 {
     sensor_msgs::msg::PointCloud2::SharedPtr pc2_cloud(new sensor_msgs::msg::PointCloud2);
 
     pcl::toROSMsg(*point_cloud, *pc2_cloud);
     pc2_cloud->header.frame_id = frame;
-    pc2_cloud->header.stamp = this->get_clock()->now();
+    pc2_cloud->header.stamp = now;
     publisher->publish(*pc2_cloud);
 }
 
