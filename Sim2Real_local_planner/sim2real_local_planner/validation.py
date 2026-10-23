@@ -14,9 +14,9 @@ from collections import OrderedDict
 from torchvision import transforms as T
 import torch.nn.functional as F
 
-from model import Safety_MTAP_Network
-from config import GlobalConfig
-from data import CARLA_Data
+from sim2real_local_planner.model import Safety_MTAP_Network
+from sim2real_local_planner.config import GlobalConfig
+from sim2real_local_planner.data import CARLA_Data
 
 
 import pathlib
@@ -25,7 +25,7 @@ from torch.distributed.elastic.multiprocessing.errors import record
 import random
 from torch.distributed.optim import ZeroRedundancyOptimizer
 import torch.multiprocessing as mp
-from loss import focal_R_loss
+from sim2real_local_planner.loss import focal_R_loss
 
 # Records error and tracebacks in case of failure
 id=1

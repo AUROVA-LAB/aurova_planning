@@ -51,7 +51,7 @@
 
   <exec_depend>global_planning</exec_depend>
   <exec_depend>local_planning</exec_depend>
-  <!-- <exec_depend>dynamic_obstacles_prediction</exec_depend> -->
+  <exec_depend>dynamic_obstacles_prediction</exec_depend>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   

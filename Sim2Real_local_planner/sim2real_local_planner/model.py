@@ -2,7 +2,7 @@ from collections import deque
 import numpy as np
 import torch 
 from torch import nn
-from resnet import *
+from sim2real_local_planner.resnet import *
 
 
 class PIDController(object):

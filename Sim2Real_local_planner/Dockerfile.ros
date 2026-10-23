@@ -1,44 +1,54 @@
 # YOLOv5 🚀 by Ultralytics, GPL-3.0 license
 
 # Start FROM Nvidia PyTorch image https://ngc.nvidia.com/catalog/containers/nvidia:pytorch
-FROM nvidia/cuda:11.7.1-cudnn8-devel-ubuntu20.04
+FROM ros:jazzy
 
-# Install linux packages
-RUN apt update && apt install -y zip htop screen libgl1-mesa-glx
-RUN apt purge -y python3.8 && rm -rf /opt/conda
-RUN apt install -y python3.8
-RUN apt install -y python-is-python3
-RUN apt update && apt install -y zip htop screen libgl1-mesa-glx python3-pip git
-
-# # Install python dependencies
-RUN python -m pip install --upgrade pip
-RUN pip uninstall -y nvidia-tensorboard nvidia-tensorboard-plugin-dlprof
-RUN pip install coremltools onnx gsutil notebook wandb>=0.12.2
-
-COPY requirements.txt .
-ENV SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL True
-RUN pip install --no-cache -r requirements.txt
-
-ENV DEBIAN_FRONTEND noninteractive
-RUN apt-get install -y libsm6 libxrender1 libfontconfig1 libglib2.0-0
-RUN pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.0.0+cu117.html
-RUN pip install mmcv-full mmdet==2.27.0
-RUN pip install torch==2.0.0 torchvision==0.15.1 torchaudio==2.0.1
-
-# ROS installlation
-RUN apt-get update && apt-get install -y curl 
-RUN sh -c 'echo "deb http://packages.ros.org/ros/ubuntu focal main" > /etc/apt/sources.list.d/ros-latest.list'
-RUN curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add -
+# install ros packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ros-noetic-ros-base ros-noetic-cv-bridge ros-noetic-ackermann-msgs\
+    ros-jazzy-desktop-full \
     && rm -rf /var/lib/apt/lists/*
 
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y apt-utils curl wget git bash-completion build-essential sudo && rm -rf /var/lib/apt/lists/*
-RUN apt-get update && apt-get install -y ros-noetic-tf && rm -rf /var/lib/apt/lists/*
-RUN mkdir -p /catkin_ws/src
-COPY . /catkin_ws/src/Sim2Real
-RUN cd /catkin_ws/src && /bin/bash -c "source /opt/ros/noetic/setup.bash; catkin_init_workspace; cd ../; catkin_make"
-RUN cd /catkin_ws/src/Sim2Real && chmod +x agent_ros.py
 
-CMD export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python && cd /catkin_ws/ \
-    && /bin/bash -c "source devel/setup.bash; roslaunch sim2real_local_planner agent_ros.launch"
+RUN echo "ubuntu:ubuntu" | chpasswd
+
+# Install pip
+RUN apt-get update && apt-get install -y python3-pip && rm -rf /var/lib/apt/lists/*
+
+USER ubuntu
+RUN mkdir -p /home/ubuntu/aurova_ws
+
+# Initialize the workspace Delete this before commit
+RUN cd /home/ubuntu/aurova_ws && mkdir src
+
+RUN python3 -m pip config set global.break-system-packages true
+RUN pip3 install gdown easydict 
+RUN pip3 install torch==2.14.1 torchvision==0.29.1 torchaudio==2.11.0 --index-url https://download.pytorch.org/whl/cu126
+RUN pip3 install torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.14.0+cu126
+RUN pip3 install pyquaternion
+# COPY requirements.txt .
+# ENV SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL True
+# RUN pip install --no-cache -r requirements.txt
+
+# ROS installlation
+USER root
+RUN apt-get update && apt install -y python-is-python3
+RUN apt-get install -y libsm6 libxrender1 libfontconfig1 libglib2.0-0
+RUN apt-get install -y ros-${ROS_DISTRO}-rmw-cyclonedds-cpp
+RUN apt-get install -y ros-${ROS_DISTRO}-ackermann-msgs && \
+    rm -rf /var/lib/apt/lists/*
+RUN cd /home/ubuntu/aurova_ws/src && mkdir Sim2Real
+
+RUN cd /home/ubuntu/aurova_ws/src/Sim2Real/ && mkdir resource && touch resource/sim2real_local_planner
+COPY setup* package.xml /home/ubuntu/aurova_ws/src/Sim2Real/
+COPY sim2real_local_planner/ /home/ubuntu/aurova_ws/src/Sim2Real/sim2real_local_planner/
+COPY launch/ /home/ubuntu/aurova_ws/src/Sim2Real/launch/
+RUN cd /home/ubuntu/aurova_ws/src/Sim2Real/ && chmod +x sim2real_local_planner/agent_ros.py
+
+USER ubuntu
+
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+## Compile the package
+RUN cd /home/ubuntu/aurova_ws/ && colcon build
+CMD  /bin/bash -c "source /home/ubuntu/aurova_ws/install/setup.bash && ros2 launch sim2real_local_planner agent_ros.xml"

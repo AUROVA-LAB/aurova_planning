@@ -1,37 +1,41 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.5)
 project(dynamic_obstacles_prediction)
 
-set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "-std=c++14")
-set(CMAKE_CXX_FLAGS "-std=gnu++14")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g")
+# Default to C99
+if(NOT CMAKE_C_STANDARD)
+  set(CMAKE_C_STANDARD 99)
+endif()
 
-## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+# Default to C++14
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 14)
+endif()
 
-## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS
-  cv_bridge
-  detection_msgs
-  eigen_conversions
-  image_transport
-  message_generation
-  roscpp
-  rospy
-  sensor_msgs
-  std_msgs
-  tf
-)
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
 
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
 find_package(PCL REQUIRED)
-find_package(Boost REQUIRED)
+find_package(detection_msgs REQUIRED)
+find_package(message_filters REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(pcl_conversions REQUIRED)
+find_package(Eigen3 REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(ackermann_msgs REQUIRED)
 
-catkin_package(
-  CATKIN_DEPENDS
-  DEPENDS PCL
-)
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  # the following line skips the linter which checks for copyrights
+  # uncomment the line when a copyright and license is not present in all source files
+  #set(ament_cmake_copyright_FOUND TRUE)
+  # the following line skips cpplint (only works in a git repo)
+  # uncomment the line when this package is not in a git repo
+  #set(ament_cmake_cpplint_FOUND TRUE)
+  ament_lint_auto_find_test_dependencies()
+endif()
 
 ###########
 ## Build ##
@@ -39,21 +43,21 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-include_directories(
-  include
-  ${catkin_INCLUDE_DIRS}
-  ${PCL_INCLUDE_DIRS}
-  ${Boost_INCLUDE_DIRS}
-)
+include_directories(include)
+include_directories(${EIGEN_INCLUDE_DIR})
+include_directories(${PCL_INCLUDE_DIRS})
 
 add_executable(dynamic_obstacles_prediction_node  src/dynamic_obstacles_prediction.cpp)
-target_link_libraries(dynamic_obstacles_prediction_node
-   ${catkin_LIBRARIES}
-   ${PCL_LIBRARIES}
-   ${Boost_LIBRARIES}
+# target_link_libraries(dynamic_obstacles_prediction_node ${PCL_LIBRARIES})
+ament_target_dependencies(dynamic_obstacles_prediction_node rclcpp  Eigen3 detection_msgs  nav_msgs PCL pcl_conversions geometry_msgs ackermann_msgs)
+
+install(TARGETS
+  dynamic_obstacles_prediction_node
+  DESTINATION lib/${PROJECT_NAME}
 )
 
-
+ament_export_dependencies(rclcpp Eigen3)
+ament_package()
 
 
 

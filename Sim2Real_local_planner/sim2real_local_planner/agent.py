@@ -11,8 +11,8 @@ import torch
 import numpy as np
 import math
 import time
-from model import *
-from config import GlobalConfig
+from sim2real_local_planner.model import *
+from sim2real_local_planner.config import GlobalConfig
 from torchvision import transforms as T
 
 import itertools

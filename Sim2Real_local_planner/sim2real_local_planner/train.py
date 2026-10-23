@@ -10,10 +10,10 @@ import numpy as np
 
 from torch.utils.tensorboard import SummaryWriter
 
-from model import *
-from loss import *
-from data import CARLA_Data
-from config import GlobalConfig
+from sim2real_local_planner.model import *
+from sim2real_local_planner.loss import *
+from sim2real_local_planner.data import CARLA_Data
+from sim2real_local_planner.config import GlobalConfig
 from tqdm import tqdm
 from collections import OrderedDict
 from typing import Union

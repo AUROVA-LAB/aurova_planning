@@ -1,14 +1,13 @@
-#include <ros/ros.h>
-#include <sensor_msgs/Image.h>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/image.hpp>
 #include <Eigen/Dense>
 
-#include <pcl_ros/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_types.h>
-#include <geometry_msgs/Pose.h>
-#include <detection_msgs/PositionList.h>
-#include <nav_msgs/Odometry.h>
-#include <ackermann_msgs/AckermannDrive.h>
+#include <geometry_msgs/msg/pose.hpp>
+#include <detection_msgs/msg/position_list.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+#include <ackermann_msgs/msg/ackermann_drive.hpp>
 
 #include <iostream>
 #include <math.h>
@@ -31,91 +30,95 @@ typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
 
  //Consider points around this distance of the obstacle location.
 struct obstacle_info{
-  geometry_msgs::Point relative_position; //The position of the obstacle respect the lidar frame.
-  geometry_msgs::Point global_position; //The global position, used to approximate the speed.
+  geometry_msgs::msg::Point relative_position; //The position of the obstacle respect the lidar frame.
+  geometry_msgs::msg::Point global_position; //The global position, used to approximate the speed.
   Eigen::Vector3f speed, relative_speed; //Similar to before, the relative speed for moving the points respect lidar frame.
   int id;
   double last_time;
 };
 
-class DynamicObstaclePredictionNode{
+class DynamicObstaclePredictionNode : public rclcpp::Node{
   vector<obstacle_info> obstacles;
-  geometry_msgs::Pose robot_pose;
+  geometry_msgs::msg::Pose robot_pose;
 
   float filter_radious;
   double keep_time;
   float time_per_distance, safety_margin, robot_speed;
-  ros::NodeHandle nh;
+
 
   //Publisher
-  ros::Publisher pc_filtered_pub; 
-  ros::Publisher pc_obstXY_pub; 
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr  pc_filtered_pub; 
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr  pc_obstXY_pub; 
 
   //Subscriber
-  ros::Subscriber pose_subscriber;  
-  ros::Subscriber speed_subscriber;  
-  message_filters::Subscriber<detection_msgs::PositionList>obstacles_sub;
-  message_filters::Subscriber<sensor_msgs::PointCloud2> ground_points_sub, obstacles_points_sub;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr pose_subscriber;  
+  rclcpp::Subscription<ackermann_msgs::msg::AckermannDrive>::SharedPtr speed_subscriber;  
+  message_filters::Subscriber<detection_msgs::msg::PositionList>obstacles_sub;
+  message_filters::Subscriber<sensor_msgs::msg::PointCloud2> ground_points_sub, obstacles_points_sub;
   public:
+    std::shared_ptr<rclcpp::Rate> loop_rate;
+    double rate;
     DynamicObstaclePredictionNode();
     void predict_pointcloud(PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud);
-    void callback(const sensor_msgs::PointCloud2::ConstPtr&,const sensor_msgs::PointCloud2::ConstPtr&,const detection_msgs::PositionListConstPtr&);
-    void pose_callback(const nav_msgs::Odometry::ConstPtr& pose_msg);
-    void speed_callback(const ackermann_msgs::AckermannDrive::ConstPtr& ackermann_msg);
+    void callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr ,const sensor_msgs::msg::PointCloud2::ConstSharedPtr ,const detection_msgs::msg::PositionList::ConstSharedPtr );
+    void pose_callback(const nav_msgs::msg::Odometry::SharedPtr  pose_msg);
+    void speed_callback(const ackermann_msgs::msg::AckermannDrive::SharedPtr  ackermann_msg);
+    void publishPointCloud(rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr, PointCloud::Ptr, std::string, rclcpp::Time);
 };
 ///////////////////////////////////////callback
 
-DynamicObstaclePredictionNode::DynamicObstaclePredictionNode(){
+DynamicObstaclePredictionNode::DynamicObstaclePredictionNode(void) : 
+  Node("dynamic_obstacle_prediction"){
   obstacles = vector<obstacle_info>(0);
-  
-  nh = ros::NodeHandle("~");  
-  /// Load Parameters
-  nh.param("filter_radious", filter_radious, float(0.8));
-  nh.param("keep_time", keep_time, 2.0);
-  nh.param("time_per_distance", time_per_distance, float(0.7));
-  nh.param("safety_margin", safety_margin, float(0.2));
 
-  robot_pose = geometry_msgs::Pose();
+  /// Load Parameters
+  this->declare_parameter("filter_radious", 0.8); 
+  this->get_parameter("filter_radious", filter_radious);
+  this->declare_parameter("keep_time", 2.0); 
+  this->get_parameter("keep_time", keep_time);
+  this->declare_parameter("time_per_distance", 0.7); 
+  this->get_parameter("time_per_distance", time_per_distance);
+  this->declare_parameter("safety_margin", 0.2); 
+  this->get_parameter("safety_margin", safety_margin);
+
+  robot_pose = geometry_msgs::msg::Pose();
   robot_pose.orientation.w=1;
 
   //Init subscribers
-  obstacles_sub.subscribe(nh,"/carla/base_link/walker_list", 10); 
-  ground_points_sub.subscribe(nh,"/ground_obstacles", 10); 
-  obstacles_points_sub.subscribe(nh,"/ouster_obstacles", 10); 
-  typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, sensor_msgs::PointCloud2, detection_msgs::PositionList> MySyncPolicy;
+  obstacles_sub.subscribe(this,"/carla/base_link/walker_list"); 
+  ground_points_sub.subscribe(this,"/ground_obstacles"); 
+  obstacles_points_sub.subscribe(this,"/ouster_obstacles"); 
+  typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::msg::PointCloud2, sensor_msgs::msg::PointCloud2, detection_msgs::msg::PositionList> MySyncPolicy;
   static message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), ground_points_sub, obstacles_points_sub, obstacles_sub);
-  sync.registerCallback(boost::bind(&DynamicObstaclePredictionNode::callback,this, _1, _2, _3));
+  sync.registerCallback(std::bind(&DynamicObstaclePredictionNode::callback,this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
-  pose_subscriber = nh.subscribe("/localization", 1, &DynamicObstaclePredictionNode::pose_callback, this);
-  speed_subscriber = nh.subscribe("/carla/base_link/ackermann_cmd", 1, &DynamicObstaclePredictionNode::speed_callback, this);
+  pose_subscriber = this->create_subscription<nav_msgs::msg::Odometry>("/localization", 1, std::bind(&DynamicObstaclePredictionNode::pose_callback, this, std::placeholders::_1));
+  speed_subscriber = this->create_subscription<ackermann_msgs::msg::AckermannDrive>("/carla/base_link/ackermann_cmd", 1, std::bind(&DynamicObstaclePredictionNode::speed_callback, this, std::placeholders::_1));
 
   //Init publishers 
-  pc_filtered_pub = nh.advertise<sensor_msgs::PointCloud2> ("/ouster_prediction_obstacles", 1);
-  pc_obstXY_pub   = nh.advertise<sensor_msgs::PointCloud2> ("/ground_prediction_obstacles", 1);
+  pc_filtered_pub = this->create_publisher<sensor_msgs::msg::PointCloud2> ("/ouster_prediction_obstacles", 1);
+  pc_obstXY_pub   = this->create_publisher<sensor_msgs::msg::PointCloud2> ("/ground_prediction_obstacles", 1);
 }
 
-void DynamicObstaclePredictionNode::pose_callback(const nav_msgs::Odometry::ConstPtr& pose_msg){
+void DynamicObstaclePredictionNode::pose_callback(const nav_msgs::msg::Odometry::SharedPtr  pose_msg){
   this->robot_pose=pose_msg->pose.pose;
 }
 
-void DynamicObstaclePredictionNode::speed_callback(const ackermann_msgs::AckermannDrive::ConstPtr& ackermann_msg){
+void DynamicObstaclePredictionNode::speed_callback(const ackermann_msgs::msg::AckermannDrive::SharedPtr  ackermann_msg){
   //Approximate the speed in the local axis X, using the steering angle as the angular angle.
   this->robot_speed=ackermann_msg->speed*cos(ackermann_msg->steering_angle);
 }
 
-void DynamicObstaclePredictionNode::callback(const sensor_msgs::PointCloud2::ConstPtr& ground_obstacles_msg,const sensor_msgs::PointCloud2::ConstPtr& ouster_obstacles_msg,const detection_msgs::PositionListConstPtr& obstacles_position_msg)
+void DynamicObstaclePredictionNode::callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr ground_obstacles_msg, const sensor_msgs::msg::PointCloud2::ConstSharedPtr ouster_obstacles_msg, const detection_msgs::msg::PositionList::ConstSharedPtr obstacles_position_msg)
 {
   if (ground_obstacles_msg == NULL) return;
-  pcl::PCLPointCloud2 aux;
   PointCloud::Ptr ground_obstacles_pcl(new PointCloud);
   PointCloud::Ptr ouster_obstacles_pcl(new PointCloud);
 
-  pcl_conversions::toPCL(*ground_obstacles_msg, aux);
-  pcl::fromPCLPointCloud2(aux, *ground_obstacles_pcl);
-  pcl_conversions::toPCL(*ouster_obstacles_msg, aux);
-  pcl::fromPCLPointCloud2(aux, *ouster_obstacles_pcl);
+  pcl::fromROSMsg(*ground_obstacles_msg, *ground_obstacles_pcl);
+  pcl::fromROSMsg(*ouster_obstacles_msg, *ouster_obstacles_pcl);
 
-  double now = ros::Time::now().toSec();
+  double now = this->now().seconds();
   //Remove old obstacles
   for(int j=0;j<obstacles.size();j++){
     if(now-obstacles[j].last_time>keep_time){
@@ -129,13 +132,13 @@ void DynamicObstaclePredictionNode::callback(const sensor_msgs::PointCloud2::Con
     int id=obstacles_position_msg->ids[i];
     bool new_obstacle=true;
     //Calucluate global position of the obstacle
-    geometry_msgs::Point global_position;
+    geometry_msgs::msg::Point global_position;
     // global_position.x = round((robot_pose.position.x + obstacles_position_msg->positions[i].x)*100.0)/100.0;
     // global_position.y = round((robot_pose.position.y + obstacles_position_msg->positions[i].y)*100.0)/100.0;
     global_position.x = robot_pose.position.x + obstacles_position_msg->positions[i].x;
     global_position.y = robot_pose.position.y + obstacles_position_msg->positions[i].y;
     //Apply rotation to get relative position
-    geometry_msgs::Point relative_position;
+    geometry_msgs::msg::Point relative_position;
     Eigen::Vector3f p(obstacles_position_msg->positions[i].x,obstacles_position_msg->positions[i].y,obstacles_position_msg->positions[i].z);
     Eigen::Quaternionf q(robot_pose.orientation.w,robot_pose.orientation.x,robot_pose.orientation.y,robot_pose.orientation.z);
     p = q.conjugate() * p;
@@ -173,17 +176,13 @@ void DynamicObstaclePredictionNode::callback(const sensor_msgs::PointCloud2::Con
   ground_cloud->is_dense = false;
   ground_cloud->width = (int) ground_cloud->points.size();
   ground_cloud->height = 1;
-  ground_cloud->header.frame_id = ground_obstacles_msg->header.frame_id;
-  ground_cloud->header.stamp = ground_obstacles_msg->header.stamp.toNSec()/1e3;
-  pc_obstXY_pub.publish (ground_cloud);
+  publishPointCloud(pc_obstXY_pub,ground_cloud, ground_obstacles_msg->header.frame_id, ground_obstacles_msg->header.stamp);
 
   // obstacles cloud
   ouster_cloud->is_dense = false;
-  ground_cloud->width = (int) ouster_cloud->points.size();
+  ouster_cloud->width = (int) ouster_cloud->points.size();
   ouster_cloud->height = 1;
-  ouster_cloud->header.frame_id = ground_obstacles_msg->header.frame_id;
-  ouster_cloud->header.stamp = ground_cloud->header.stamp;
-  pc_filtered_pub.publish (ouster_cloud);
+  publishPointCloud(pc_filtered_pub,ouster_cloud, ground_obstacles_msg->header.frame_id, ground_obstacles_msg->header.stamp);
 }
 
 void DynamicObstaclePredictionNode::predict_pointcloud(PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud){
@@ -219,10 +218,23 @@ void DynamicObstaclePredictionNode::predict_pointcloud(PointCloud::Ptr input_clo
   }
 }
 
+void DynamicObstaclePredictionNode::publishPointCloud(rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher, PointCloud::Ptr point_cloud,
+    std::string frame, rclcpp::Time now )
+{
+    sensor_msgs::msg::PointCloud2::SharedPtr pc2_cloud(new sensor_msgs::msg::PointCloud2);
+
+    pcl::toROSMsg(*point_cloud, *pc2_cloud);
+    pc2_cloud->header.frame_id = frame;
+    pc2_cloud->header.stamp = now;
+    publisher->publish(*pc2_cloud);
+}
+
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "DynamicObstaclePrediction");
-  DynamicObstaclePredictionNode node;
-  ros::spin();
+  rclcpp::init(argc, argv);
+  auto node =std::make_shared<DynamicObstaclePredictionNode>();
+  node->rate = node->declare_parameter<double>("rate", 10.0);
+	node->loop_rate = std::make_shared<rclcpp::Rate>(node->rate);
+  rclcpp::spin(node);
   return 0;
 }

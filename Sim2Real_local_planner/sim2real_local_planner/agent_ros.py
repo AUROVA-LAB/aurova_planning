@@ -11,15 +11,15 @@ import torch
 import numpy as np
 import math
 import time
-from model import *
-from config import GlobalConfig
+from sim2real_local_planner.model import *
+from sim2real_local_planner.config import GlobalConfig
 from torchvision import transforms as T
+from scipy.spatial.transform import Rotation as R
 
 import itertools
 import pathlib
 import argparse
 
-import tf.transformations
 SAVE_PATH = os.environ.get('SAVE_PATH')
 
 if not SAVE_PATH:
@@ -27,15 +27,16 @@ if not SAVE_PATH:
 else:
     pathlib.Path(SAVE_PATH).mkdir(parents=True, exist_ok=True)
 
-import rospy
+import rclpy
+from rclpy.node import Node
 from std_msgs.msg import Float32
 from sensor_msgs.msg import Image 
 from geometry_msgs.msg import PoseWithCovarianceStamped
+from pyquaternion import Quaternion 
 from nav_msgs.msg import Odometry
 from ackermann_msgs.msg import AckermannDrive
 from visualization_msgs.msg import MarkerArray, Marker
 from message_filters import Subscriber, ApproximateTimeSynchronizer
-import tf
 from cv_bridge import CvBridge
 import cv2
 
@@ -45,16 +46,17 @@ MINIMUM_DISTANCE = 2.0
 MAX_TIME_STOPPED = 5.0 #Stopped or local minimum
 
 
-class Agent():
+class Agent(Node):
     def __init__(self):
-        rospy.init_node('agent_ros', anonymous=True)
+        super().__init__('agent_ros')
+
         self.init=False
         #Subscribers
-        self.image_sub = Subscriber("~rgb_image", Image)
-        self.depth_sub = Subscriber("~range_image", Image)
-        self.pose_sub = Subscriber("~pose", Odometry)
-        self.state_sub = rospy.Subscriber("~ackermann_state", AckermannDrive, self.state_callback)
-        self.goal_sub = rospy.Subscriber("~goal", PoseWithCovarianceStamped, self.goal_callback)
+        self.image_sub = Subscriber(self, Image,"/rgb_image")
+        self.depth_sub = Subscriber(self, Image, "/range_image")
+        self.pose_sub = Subscriber(self, Odometry, "/pose")
+        self.state_sub = self.create_subscription( AckermannDrive,"/ackermann_state", self.state_callback,10)
+        self.goal_sub = self.create_subscription( PoseWithCovarianceStamped,"/goal", self.goal_callback,10)
         
 
         self.sync_subs = ApproximateTimeSynchronizer([self.image_sub, self.depth_sub, self.pose_sub], queue_size=10, slop=0.5)
@@ -64,11 +66,11 @@ class Agent():
         self.bridge = CvBridge()
 
         #Publishers
-        self.drive_rad_pub = rospy.Publisher("~ackermann_cmd", AckermannDrive, queue_size=1)
-        self.drive_deg_pub = rospy.Publisher("~desired_ackermann_state", AckermannDrive, queue_size=1)
-        self.forw_rec_pub = rospy.Publisher("/forward_recommended_velocity", Float32, queue_size=1)
-        self.back_rec_pub = rospy.Publisher("/backward_recommended_velocity", Float32, queue_size=1)
-        self.marker_pub = rospy.Publisher("~visualization", MarkerArray, queue_size=1)
+        self.drive_rad_pub = self.create_publisher( AckermannDrive,"/ackermann_cmd", 1)
+        self.drive_deg_pub = self.create_publisher( AckermannDrive,"desired_ackermann_state", 1)
+        self.forw_rec_pub = self.create_publisher( Float32,"/forward_recommended_velocity", 1)
+        self.back_rec_pub = self.create_publisher( Float32,"/backward_recommended_velocity", 1)
+        self.marker_pub = self.create_publisher( MarkerArray,"/ackermann_vis", 1)
 
         #Agent parameters
         self.status = 0
@@ -80,17 +82,20 @@ class Agent():
         self.previous_pose = [0,0]
         self.steer_local_minimum = 1.0 #Target steer for trying to exit from a local minimum. It alternates between minimum and maximum steering angle.
         self.safe_stop=False
-        self.model = rospy.get_param("~model", "rgb+depth")
-        self.inverted_axis = rospy.get_param("~inverted_axis", False) #The Y axis in Unreal Engine is inverted, so the steering angle is also inverted. (For old models)
+        self.declare_parameter("model","rgb+depth")
+        self.declare_parameter("inverted_axis",False)
+        self.declare_parameter("model_path","")
+        self.model = self.get_parameter("model").value
+        self.inverted_axis = self.get_parameter("inverted_axis").value #The Y axis in Unreal Engine is inverted, so the steering angle is also inverted. (For old models)
         if self.inverted_axis:
-            print("Inverted axis enabled, steering angle will be inverted.")
+            print("Inverted axis enabled, steering angle will be inverted.", flush=True)
         self.tick_data = None
         self.goal, self.state = None, None
         self.drive_message=AckermannDrive()
         self.marker_message=MarkerArray()
 
         # Load model file 
-        state_dict = torch.load(rospy.get_param("~model_path"))
+        state_dict = torch.load(self.get_parameter("model_path").value)
         #Remove the parameters cell and hidden
         try:
             del state_dict["hidden"], state_dict["cell"]
@@ -115,11 +120,11 @@ class Agent():
         state=self.state
         speed=state.speed/self.config.max_speed
         steer=np.clip(state.steering_angle/self.config.max_steer,-1,1)
-        clock=pose.header.stamp.to_sec()
+        clock=pose.header.stamp.nanosec*1e-9+pose.header.stamp.sec
         position = np.array([pose.pose.pose.position.x, pose.pose.pose.position.y,0]) 
         # Use q.w to get the rotation from global to local.
-        rotation_matrix = tf.transformations.quaternion_matrix([pose.pose.pose.orientation.x, 
-                pose.pose.pose.orientation.y, pose.pose.pose.orientation.z, -pose.pose.pose.orientation.w])[:3,:3] 
+        quat = Quaternion(pose.pose.pose.orientation.w, pose.pose.pose.orientation.x, pose.pose.pose.orientation.y, -pose.pose.pose.orientation.z)
+        rotation_matrix = quat.rotation_matrix
         
         target_point=self.goal-position
         target_point = np.dot(rotation_matrix, target_point)
@@ -174,7 +179,6 @@ class Agent():
         pred_wp = pred['pred_wp'][0].data.cpu().numpy()
         #The Y axis in Carla/Unreal Engine has the inverse convention, transform for clearer estimation of angle and visualization
         # pred_wp = np.array([[point[0], -point[1]] for point in pred_wp])
-
         steer, speed = acker_steer_ctrl, acker_speed_ctrl
         if self.inverted_axis:
             steer *= -1
@@ -226,18 +230,18 @@ class Agent():
         distance_id = 0 if drive_message.speed>0 else 1 
         if closest_distance<NEAR_COLLISION_DISTANCE2[distance_id]:
             drive_message.speed=0.0
-            print("Emergency stop",closest_distance)
+            print("Emergency stop",closest_distance, flush=True)
         elif closest_distance<NEAR_COLLISION_DISTANCE[distance_id]:
             direction = 1 if drive_message.speed>0 else -1
             drive_message.speed  =  min(float(drive_message.speed ), 
                         direction*self.config.max_speed * (closest_distance-NEAR_COLLISION_DISTANCE2[distance_id])/
                         (NEAR_COLLISION_DISTANCE[distance_id]-NEAR_COLLISION_DISTANCE2[distance_id]))
-            print("Decelerating",closest_distance)
+            print("Decelerating",closest_distance, flush=True)
         #Send the waypoints as markers for visualization.
         marker_message=MarkerArray()
         # for i,point in enumerate(pred_wp):
         #     marker=Marker()
-        #     marker.header.stamp = rospy.Time.now()
+        #     marker.header.stamp = self.get_clock().now()
         #     marker.header.frame_id = "map"
         #     marker.type = Marker.SPHERE
         #     marker.action = Marker.ADD
@@ -259,7 +263,7 @@ class Agent():
 
         #Visualize the ackermann cmd in RViZ.
         arrow_marker = Marker()
-        arrow_marker.header.stamp = rospy.Time.now()
+        arrow_marker.header.stamp = self.get_clock().now().to_msg()
         arrow_marker.header.frame_id = "map"
         arrow_marker.type = Marker.ARROW
         arrow_marker.action = Marker.ADD
@@ -267,9 +271,10 @@ class Agent():
 
         arrow_marker.pose.position.x = self.tick_data["position"][0]
         arrow_marker.pose.position.y = self.tick_data["position"][1]
-        arrow_marker.pose.position.z = 0
+        arrow_marker.pose.position.z = 0.0
         yaw = math.atan2(self.tick_data["rotation"][1, 0], self.tick_data["rotation"][0, 0]) + drive_message.steering_angle
-        quaternion = tf.transformations.quaternion_from_euler(0, 0, yaw)
+        r = R.from_euler('xyz', [0, 0, yaw])
+        quaternion = r.as_quat()
         arrow_marker.pose.orientation.x = quaternion[0]
         arrow_marker.pose.orientation.y = quaternion[1]
         arrow_marker.pose.orientation.z = quaternion[2]
@@ -298,8 +303,6 @@ class Agent():
         self.state = state
 
     def publish_step(self):  
-        # self.forw_rec_pub.publish(Float32(1000))
-        # self.back_rec_pub.publish(Float32(1000))
         message_deg = AckermannDrive()
         message_deg.speed=self.drive_message.speed
         message_deg.steering_angle = self.drive_message.steering_angle*180/math.pi
@@ -361,17 +364,17 @@ class Agent():
         del self.net
 
     
-def main():
+def main(args=None):
+    rclpy.init(args=args)
     actor=Agent()
-    print("Agent loaded")
-    r = rospy.Rate(10)
+    print("Network model loaded", flush=True)
+    
     try:
-        while not rospy.is_shutdown():
+        while True:
+            rclpy.spin_once(actor)
             actor.publish_step()
-            r.sleep()
-    finally:
-        actor.destroy()
+    except KeyboardInterrupt:
+        pass
+    actor.destroy_node()
+    rclpy.shutdown()
 
-if __name__ == '__main__':
-
-    main()
